@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 from sentence_transformers import SentenceTransformer
-from sklearn.decomposition import LatentDirichletAllocation, PCA
+from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, MinMaxScaler, LabelEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -67,15 +67,11 @@ if uploaded_file:
         df[f'Topic_{i}'] = lda_topics[:, i]
     df.drop(columns=['BERT_Embeddings'], inplace=True)
 
-    # Step 9: Encoding & Scaling with PCA for Categorical Variables
+    # Step 9: Encoding & Scaling (Removed PCA)
     categorical_features = ['Assigned_Solicitor']
     numerical_features = ['Negotiation_Rounds', 'Initial_Fees', 'Final_Fees', 'Fee_Reduction_Percentage'] + [f'Topic_{i}' for i in range(5)]
 
-    pca = PCA(n_components=10)
-    categorical_transformer = Pipeline([
-        ('onehot', OneHotEncoder(handle_unknown='ignore')),
-        ('pca', pca)
-    ])
+    categorical_transformer = OneHotEncoder(handle_unknown='ignore')
     numerical_transformer = StandardScaler()
 
     preprocessor = ColumnTransformer(
