@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 from sentence_transformers import SentenceTransformer
 from sklearn.decomposition import LatentDirichletAllocation
-from sklearn.preprocessing import StandardScaler, OneHotEncoder, MinMaxScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, MinMaxScaler, LabelEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
@@ -43,6 +43,10 @@ if uploaded_file:
         lambda row: 'Negotiated' if pd.notnull(row['Initial_Fees']) and pd.notnull(row['Final_Fees']) and row['Initial_Fees'] > row['Final_Fees']
         else 'Accepted' if pd.notnull(row['Initial_Fees']) and pd.notnull(row['Final_Fees']) and row['Initial_Fees'] == row['Final_Fees']
         else 'Unknown', axis=1)
+
+    # Encode target variable
+    label_encoder = LabelEncoder()
+    df['Negotiation_Outcome'] = label_encoder.fit_transform(df['Negotiation_Outcome'])
 
     # Step 6: Feature Engineering
     df['Fee_Reduction_Percentage'] = ((df['Initial_Fees'] - df['Final_Fees']) / df['Initial_Fees']) * 100
@@ -103,7 +107,7 @@ if uploaded_file:
         # Display Confusion Matrix
         cm = confusion_matrix(y_test, y_pred)
         fig, ax = plt.subplots()
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=model.classes_, yticklabels=model.classes_)
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=label_encoder.classes_, yticklabels=label_encoder.classes_)
         plt.xlabel("Predicted")
         plt.ylabel("Actual")
         plt.title(f"Confusion Matrix - {name}")
@@ -118,4 +122,5 @@ if uploaded_file:
         user_data = np.array([list(user_input.values()) + [solicitor_input]])
         user_data_transformed = preprocessor.transform(user_data)
         prediction = models['Random Forest'].predict(user_data_transformed)[0]
-        st.write(f"Predicted Negotiation Outcome: **{prediction}**")
+        predicted_label = label_encoder.inverse_transform([prediction])[0]
+        st.write(f"Predicted Negotiation Outcome: **{predicted_label}**")
