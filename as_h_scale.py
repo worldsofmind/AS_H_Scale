@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 from sentence_transformers import SentenceTransformer
-from sklearn.decomposition import LatentDirichletAllocation
+from sklearn.decomposition import LatentDirichletAllocation, PCA
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, MinMaxScaler, LabelEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -67,11 +67,15 @@ if uploaded_file:
         df[f'Topic_{i}'] = lda_topics[:, i]
     df.drop(columns=['BERT_Embeddings'], inplace=True)
 
-    # Step 9: Encoding & Scaling
+    # Step 9: Encoding & Scaling with PCA for Categorical Variables
     categorical_features = ['Assigned_Solicitor']
     numerical_features = ['Negotiation_Rounds', 'Initial_Fees', 'Final_Fees', 'Fee_Reduction_Percentage'] + [f'Topic_{i}' for i in range(5)]
 
-    categorical_transformer = OneHotEncoder(handle_unknown='ignore')
+    pca = PCA(n_components=10)
+    categorical_transformer = Pipeline([
+        ('onehot', OneHotEncoder(handle_unknown='ignore')),
+        ('pca', pca)
+    ])
     numerical_transformer = StandardScaler()
 
     preprocessor = ColumnTransformer(
@@ -90,7 +94,7 @@ if uploaded_file:
     # Step 11: Model Training
     models = {
         'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42),
-        'Logistic Regression': LogisticRegression(max_iter=1000, multi_class='multinomial', solver='lbfgs', class_weight='balanced'),
+        'Logistic Regression': LogisticRegression(max_iter=5000, multi_class='ovr', solver='saga', class_weight='balanced'),
         'SVM': SVC(kernel='linear', probability=True)
     }
 
