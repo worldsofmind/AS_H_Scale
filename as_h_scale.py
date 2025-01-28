@@ -22,7 +22,7 @@ st.title("Honoria Scale Negotiation Prediction App")
 # Step 1: Upload Dataset
 uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])
 if uploaded_file:
-    df = pd.read_excel(uploaded_file)
+    df = pd.read_excel(uploaded_file, engine="openpyxl")  # Explicitly specify openpyxl engine
 
     # Step 2: Rename columns for easier handling
     df.columns = ['Case_Reference', 'Assigned_Solicitor', 'Negotiation_Rounds',
