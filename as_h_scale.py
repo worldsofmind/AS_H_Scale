@@ -86,7 +86,7 @@ if uploaded_file:
     # Step 11: Model Training
     models = {
         'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42),
-        'Logistic Regression': LogisticRegression(max_iter=1000),
+        'Logistic Regression': LogisticRegression(max_iter=1000, multi_class='multinomial', solver='lbfgs', class_weight='balanced'),
         'SVM': SVC(kernel='linear', probability=True)
     }
 
