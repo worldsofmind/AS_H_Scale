@@ -6,3 +6,4 @@ matplotlib
 seaborn
 shap
 sentence-transformers
+openpyxl
