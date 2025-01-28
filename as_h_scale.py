@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 from sentence_transformers import SentenceTransformer
 from sklearn.decomposition import LatentDirichletAllocation
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, MinMaxScaler
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
@@ -52,9 +52,12 @@ if uploaded_file:
     df['BERT_Embeddings'] = df['Billing_Communication'].apply(lambda x: model.encode(x))
     bert_embeddings = np.vstack(df['BERT_Embeddings'].values)
 
-    # Step 8: Apply LDA Topic Modeling on BERT embeddings
+    # Step 8: Apply LDA Topic Modeling on BERT embeddings with Non-Negativity Constraint
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    bert_embeddings_scaled = scaler.fit_transform(bert_embeddings)
+
     lda_model = LatentDirichletAllocation(n_components=5, random_state=42)
-    lda_topics = lda_model.fit_transform(bert_embeddings)
+    lda_topics = lda_model.fit_transform(bert_embeddings_scaled)
 
     for i in range(5):
         df[f'Topic_{i}'] = lda_topics[:, i]
