@@ -5,7 +5,7 @@ from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, MinMaxScaler, LabelEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
@@ -71,7 +71,7 @@ if uploaded_file:
     categorical_features = ['Assigned_Solicitor']
     numerical_features = ['Negotiation_Rounds', 'Initial_Fees', 'Final_Fees', 'Fee_Reduction_Percentage'] + [f'Topic_{i}' for i in range(5)]
 
-    categorical_transformer = OneHotEncoder(handle_unknown='ignore')
+    categorical_transformer = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
     numerical_transformer = StandardScaler()
 
     preprocessor = ColumnTransformer(
@@ -82,15 +82,16 @@ if uploaded_file:
 
     df_transformed = preprocessor.fit_transform(df)
 
-    # Step 10: Splitting Data
-    y = df['Negotiation_Outcome']
-    X = df_transformed
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    # Step 10: Splitting Data using StratifiedKFold
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    train_index, test_index = next(skf.split(df_transformed, df['Negotiation_Outcome']))
+    X_train, X_test = df_transformed[train_index], df_transformed[test_index]
+    y_train, y_test = df['Negotiation_Outcome'][train_index], df['Negotiation_Outcome'][test_index]
 
     # Step 11: Model Training
     models = {
         'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42),
-        'Logistic Regression': LogisticRegression(max_iter=5000, multi_class='ovr', solver='saga', class_weight='balanced'),
+        'Logistic Regression': LogisticRegression(max_iter=5000, multi_class='ovr', solver='lbfgs', C=0.1),
         'SVM': SVC(kernel='linear', probability=True)
     }
 
