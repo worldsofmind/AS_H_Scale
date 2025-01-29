@@ -7,3 +7,4 @@ seaborn
 shap
 sentence-transformers
 openpyxl
+xgboost
