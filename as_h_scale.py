@@ -6,15 +6,21 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder, MinMaxScaler, L
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
+from xgboost import XGBClassifier
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 import shap
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from textblob import TextBlob
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from flair.models import TextClassifier
+from flair.data import Sentence
+from sklearn.model_selection import GridSearchCV
 
 # Streamlit App Header
 st.title("Honoria Scale Negotiation Prediction App")
@@ -23,47 +29,61 @@ st.title("Honoria Scale Negotiation Prediction App")
 st.header("Step 1: Upload and Clean Dataset")
 uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])
 if uploaded_file:
-    df = pd.read_excel(uploaded_file, engine="openpyxl")  # Explicitly specify openpyxl engine
+    try:
+        df = pd.read_excel(uploaded_file, engine="openpyxl")  # Explicitly specify openpyxl engine
 
-    # Step 2: Rename columns for easier handling
-    df.columns = ['Case_Reference', 'Assigned_Solicitor', 'Negotiation_Rounds',
-                  'Billing_Communication', 'Billing_Communication_Part2', 'Initial_Fees', 'Final_Fees',
-                  'Pre_H_Scale_Guidelines']
+        # Step 2: Rename columns for easier handling
+        df.columns = ['Case_Reference', 'Assigned_Solicitor', 'Negotiation_Rounds',
+                      'Billing_Communication', 'Billing_Communication_Part2', 'Initial_Fees', 'Final_Fees',
+                      'Pre_H_Scale_Guidelines']
 
-    # Step 3: Convert numerical columns to numeric types
-    df['Initial_Fees'] = pd.to_numeric(df['Initial_Fees'], errors='coerce')
-    df['Final_Fees'] = pd.to_numeric(df['Final_Fees'], errors='coerce')
-    df['Negotiation_Rounds'] = pd.to_numeric(df['Negotiation_Rounds'], errors='coerce')
+        # Step 3: Convert numerical columns to numeric types
+        df['Initial_Fees'] = pd.to_numeric(df['Initial_Fees'], errors='coerce')
+        df['Final_Fees'] = pd.to_numeric(df['Final_Fees'], errors='coerce')
+        df['Negotiation_Rounds'] = pd.to_numeric(df['Negotiation_Rounds'], errors='coerce')
 
-    # Step 4: Handle missing values
-    df['Billing_Communication'].fillna("No Communication", inplace=True)
-    df['Negotiation_Rounds'].fillna(0, inplace=True)
+        # Step 4: Handle missing values
+        df['Billing_Communication'].fillna("No Communication", inplace=True)
+        df['Negotiation_Rounds'].fillna(0, inplace=True)
 
-    # Step 5: Define the target variable based on negotiation behavior
-    df['Negotiation_Outcome'] = df.apply(
-        lambda row: 'Negotiated' if pd.notnull(row['Initial_Fees']) and pd.notnull(row['Final_Fees']) and row['Initial_Fees'] > row['Final_Fees']
-        else 'Accepted' if pd.notnull(row['Initial_Fees']) and pd.notnull(row['Final_Fees']) and row['Initial_Fees'] == row['Final_Fees']
-        else 'Unknown', axis=1)
+        # Step 5: Define the target variable based on negotiation behavior
+        df['Negotiation_Outcome'] = df.apply(
+            lambda row: 'Negotiated' if pd.notnull(row['Initial_Fees']) and pd.notnull(row['Final_Fees']) and row['Initial_Fees'] > row['Final_Fees']
+            else 'Accepted' if pd.notnull(row['Initial_Fees']) and pd.notnull(row['Final_Fees']) and row['Initial_Fees'] == row['Final_Fees']
+            else 'Unknown', axis=1)
 
-    # Encode target variable
-    label_encoder = LabelEncoder()
-    df['Negotiation_Outcome'] = label_encoder.fit_transform(df['Negotiation_Outcome'])
+        # Encode target variable
+        label_encoder = LabelEncoder()
+        df['Negotiation_Outcome'] = label_encoder.fit_transform(df['Negotiation_Outcome'])
 
-    # Display cleaned dataset
-    st.subheader("Cleaned Dataset Preview")
-    st.dataframe(df)
+        # Display cleaned dataset
+        st.subheader("Cleaned Dataset Preview")
+        st.dataframe(df)
 
-    # Allow user to download the cleaned dataset
-    cleaned_csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button("Download Cleaned Dataset", cleaned_csv, "cleaned_dataset.csv", "text/csv")
+        # Allow user to download the cleaned dataset
+        cleaned_csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button("Download Cleaned Dataset", cleaned_csv, "cleaned_dataset.csv", "text/csv")
 
-    # Step 6: Proceed to Feature Engineering
-    if st.button("Proceed to Feature Engineering"):
-        st.session_state['dataset_cleaned'] = True
+        # Step 6: Proceed to Feature Engineering
+        if st.button("Proceed to Feature Engineering"):
+            st.session_state['dataset_cleaned'] = True
+            st.session_state['df_cleaned'] = df.copy()
+
+    except Exception as e:
+        st.error(f"Error processing the uploaded file: {e}")
 
 # Step 2: Feature Engineering (Only if dataset is cleaned)
-if 'dataset_cleaned' in st.session_state:
+if 'dataset_cleaned' in st.session_state and 'df_cleaned' in st.session_state:
+    df = st.session_state['df_cleaned']
     st.header("Step 2: Feature Engineering")
+
+    # Sentiment Analysis using multiple methods
+    vader_analyzer = SentimentIntensityAnalyzer()
+    flair_analyzer = TextClassifier.load('sentiment')
+
+    df['TextBlob_Sentiment'] = df['Billing_Communication'].apply(lambda x: TextBlob(x).sentiment.polarity)
+    df['VADER_Sentiment'] = df['Billing_Communication'].apply(lambda x: vader_analyzer.polarity_scores(x)['compound'])
+    df['Flair_Sentiment'] = df['Billing_Communication'].apply(lambda x: flair_analyzer.predict(Sentence(x)) or 0)
 
     # Step 7: Extract Features from Billing Communication using BERT embeddings
     model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -83,9 +103,9 @@ if 'dataset_cleaned' in st.session_state:
 
     # Step 9: Encoding & Scaling
     categorical_features = ['Assigned_Solicitor']
-    numerical_features = ['Negotiation_Rounds', 'Initial_Fees', 'Final_Fees', 'Fee_Reduction_Percentage'] + [f'Topic_{i}' for i in range(5)]
+    numerical_features = ['Negotiation_Rounds', 'Initial_Fees', 'Final_Fees', 'Fee_Reduction_Percentage', 'TextBlob_Sentiment', 'VADER_Sentiment', 'Flair_Sentiment'] + [f'Topic_{i}' for i in range(5)]
 
-    categorical_transformer = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+    categorical_transformer = OneHotEncoder(handle_unknown='ignore', sparse=False)
     numerical_transformer = StandardScaler()
 
     preprocessor = ColumnTransformer(
@@ -104,29 +124,16 @@ if 'dataset_cleaned' in st.session_state:
         X_train, y_train = df_transformed, df['Negotiation_Outcome']
         X_test, y_test = X_train, y_train  # Use the same data for evaluation
 
-    # Step 11: Model Training
-    models = {
-        'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42),
-        'Logistic Regression': LogisticRegression(max_iter=5000, multi_class='ovr', solver='lbfgs', C=0.1),
-        'SVM': SVC(kernel='linear', probability=True)
+    # Step 11: Model Selection and Hyperparameter Tuning
+    model_choice = st.selectbox("Choose a model", ["Random Forest", "Gradient Boosting", "Logistic Regression", "SVM", "XGBoost"])
+    param_grid = {
+        'Random Forest': {'n_estimators': [50, 100, 200], 'max_depth': [3, 5, 7]},
+        'Gradient Boosting': {'n_estimators': [50, 100, 200], 'learning_rate': [0.01, 0.1, 0.2]},
+        'XGBoost': {'n_estimators': [50, 100, 200], 'learning_rate': [0.01, 0.1, 0.2], 'max_depth': [3, 5, 7]}
     }
-
-    for name, model in models.items():
-        model.fit(X_train, y_train)
     
-    # Step 12: Model Evaluation
-    st.subheader("Model Performance")
-    for name, model in models.items():
-        y_pred = model.predict(X_test)
-        st.write(f"**{name}** Accuracy: {accuracy_score(y_test, y_pred):.4f}")
-        st.text(classification_report(y_test, y_pred))
-
-        # Display Confusion Matrix
-        cm = confusion_matrix(y_test, y_pred)
-        fig, ax = plt.subplots()
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=label_encoder.classes_, yticklabels=label_encoder.classes_)
-        plt.xlabel("Predicted")
-        plt.ylabel("Actual")
-        plt.title(f"Confusion Matrix - {name}")
-        st.pyplot(fig)
-
+    model = eval(model_choice.replace(" ", "_"))()
+    grid_search = GridSearchCV(model, param_grid.get(model_choice, {}), cv=3)
+    grid_search.fit(X_train, y_train)
+    best_model = grid_search.best_estimator_
+    st.write(f"Best Hyperparameters for {model_choice}: {grid_search.best_params_}")
