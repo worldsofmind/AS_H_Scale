@@ -23,6 +23,10 @@ from flair.data import Sentence
 from sklearn.model_selection import GridSearchCV
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.cluster import KMeans
+import spacy
+
+# Load NLP Model
+nlp = spacy.load("en_core_web_sm")
 
 # Streamlit App Header
 st.title("Honoria Scale Negotiation Prediction App")
@@ -67,45 +71,31 @@ if uploaded_file:
         cleaned_csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Cleaned Dataset", cleaned_csv, "cleaned_dataset.csv", "text/csv")
 
-        # Step 6: Extract Factors Causing Deviation
-        st.header("Step 2: Identify Factors Causing Deviation from H Scale")
+        # Step 6: Extract Reasons for Deviation from H Scale
+        st.header("Step 2: Analyze Reasons for Deviation")
         df['Combined_Communication'] = df['Billing_Communication'] + " " + df['Billing_Communication_Part2']
 
-        # Text Feature Extraction
-        vectorization_method = st.selectbox("Choose text feature extraction method", ["TF-IDF", "Count Vectorizer", "LDA", "NMF"])
+        # Enhanced Semantic Analysis to Extract Key Reasons
+        def extract_reasons(text):
+            doc = nlp(text)
+            reasons = []
+            for ent in doc.ents:
+                if ent.label_ in ['LAW', 'ORG', 'MONEY', 'GPE']:  # Extract legal/financial entities
+                    reasons.append(ent.text)
+            for token in doc:
+                if token.dep_ in ['dobj', 'pobj', 'attr', 'nsubj'] and token.pos_ in ['NOUN', 'PROPN']:
+                    reasons.append(token.text)
+            return ", ".join(set(reasons))
         
-        if vectorization_method == "TF-IDF":
-            vectorizer = TfidfVectorizer(stop_words='english', max_features=500)
-        elif vectorization_method == "Count Vectorizer":
-            vectorizer = CountVectorizer(stop_words='english', max_features=500)
-        elif vectorization_method == "LDA":
-            vectorizer = TfidfVectorizer(stop_words='english', max_features=500)
-            tfidf_matrix = vectorizer.fit_transform(df['Combined_Communication'])
-            lda_model = LatentDirichletAllocation(n_components=5, random_state=42)
-            lda_topics = lda_model.fit_transform(tfidf_matrix)
-            df['Topic'] = np.argmax(lda_topics, axis=1)
-        elif vectorization_method == "NMF":
-            vectorizer = TfidfVectorizer(stop_words='english', max_features=500)
-            tfidf_matrix = vectorizer.fit_transform(df['Combined_Communication'])
-            nmf_model = NMF(n_components=5, random_state=42)
-            nmf_topics = nmf_model.fit_transform(tfidf_matrix)
-            df['Topic'] = np.argmax(nmf_topics, axis=1)
+        df['Deviation_Reasons'] = df['Combined_Communication'].apply(extract_reasons)
         
-        num_clusters = 5  # Ensure num_clusters is defined globally
-        if vectorization_method in ["TF-IDF", "Count Vectorizer"]:
-            text_features = vectorizer.fit_transform(df['Combined_Communication'])
-            kmeans = KMeans(n_clusters=num_clusters, random_state=42)
-            df['Deviation_Cluster'] = kmeans.fit_predict(text_features)
-
-        # Display Factor Analysis
-        st.subheader("Identified Factors Leading to Deviation")
-        for cluster in range(num_clusters):
-            top_words = [vectorizer.get_feature_names_out()[i] for i in np.argsort(kmeans.cluster_centers_[cluster])[-10:]]
-            st.write(f"**Category {cluster}:** {', '.join(top_words)}")
-
-        # Store results for later use
-        st.session_state['factors_identified'] = True
-        st.session_state['df_with_factors'] = df.copy()
+        # Display Extracted Reasons
+        st.subheader("Identified Reasons for Deviation")
+        st.dataframe(df[['Case_Reference', 'Assigned_Solicitor', 'Deviation_Reasons']])
+        
+        # Store extracted reasons for later use
+        st.session_state['reasons_identified'] = True
+        st.session_state['df_with_reasons'] = df.copy()
 
         # Step 7: Proceed to Classification Model
         if st.button("Proceed to Classification Model"):
