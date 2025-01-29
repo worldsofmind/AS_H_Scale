@@ -1,5 +1,3 @@
-Python
-
 import pandas as pd
 import streamlit as st
 from sentence_transformers import SentenceTransformer
@@ -69,7 +67,7 @@ if uploaded_file:
         df[f'Topic_{i}'] = lda_topics[:, i]
     df.drop(columns=['BERT_Embeddings'], inplace=True)
 
-    # Step 9: Encoding & Scaling (Removed PCA)
+    # Step 9: Encoding & Scaling
     categorical_features = ['Assigned_Solicitor']
     numerical_features = ['Negotiation_Rounds', 'Initial_Fees', 'Final_Fees', 'Fee_Reduction_Percentage'] + [f'Topic_{i}' for i in range(5)]
 
@@ -84,18 +82,16 @@ if uploaded_file:
 
     df_transformed = preprocessor.fit_transform(df)
 
-    # Step 10: Splitting Data using StratifiedKFold with Shuffle
+    # Step 10: Splitting Data using StratifiedKFold
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-
     try:
         train_index, test_index = next(skf.split(df_transformed, df['Negotiation_Outcome']))
         X_train, X_test = df_transformed[train_index], df_transformed[test_index]
         y_train, y_test = df['Negotiation_Outcome'][train_index], df['Negotiation_Outcome'][test_index]
-
     except ValueError as e:
         st.error(f"Error during data splitting: {e}")
         st.warning("Please check your data for class imbalance or missing values.")
-        return
+        st.stop()
 
     # Step 11: Model Training
     models = {
@@ -106,7 +102,7 @@ if uploaded_file:
 
     for name, model in models.items():
         model.fit(X_train, y_train)
-
+    
     # Step 12: Model Evaluation
     st.subheader("Model Performance")
     for name, model in models.items():
