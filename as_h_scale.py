@@ -5,7 +5,7 @@ from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, MinMaxScaler, LabelEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
@@ -82,15 +82,11 @@ if uploaded_file:
 
     df_transformed = preprocessor.fit_transform(df)
 
-    # Step 10: Splitting Data using StratifiedKFold
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    try:
-        train_index, test_index = next(skf.split(df_transformed, df['Negotiation_Outcome']))
-        X_train, X_test = df_transformed[train_index], df_transformed[test_index]
-        y_train, y_test = df['Negotiation_Outcome'][train_index], df['Negotiation_Outcome'][test_index]
-    except ValueError as e:
-        st.error(f"Error during data splitting: {e}")
-        st.warning("Please check your data for class imbalance or missing values.")
+    # Step 10: Splitting Data with a Safe Train-Test Split
+    if len(df) >= 5:
+        X_train, X_test, y_train, y_test = train_test_split(df_transformed, df['Negotiation_Outcome'], test_size=0.2, random_state=42, stratify=df['Negotiation_Outcome'])
+    else:
+        st.error("Not enough samples for proper train-test split. Model training requires at least 5 samples.")
         st.stop()
 
     # Step 11: Model Training
