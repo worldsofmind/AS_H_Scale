@@ -20,6 +20,7 @@ import seaborn as sns
 st.title("Honoria Scale Negotiation Prediction App")
 
 # Step 1: Upload Dataset
+st.header("Step 1: Upload and Clean Dataset")
 uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])
 if uploaded_file:
     df = pd.read_excel(uploaded_file, engine="openpyxl")  # Explicitly specify openpyxl engine
@@ -48,8 +49,21 @@ if uploaded_file:
     label_encoder = LabelEncoder()
     df['Negotiation_Outcome'] = label_encoder.fit_transform(df['Negotiation_Outcome'])
 
-    # Step 6: Feature Engineering
-    df['Fee_Reduction_Percentage'] = ((df['Initial_Fees'] - df['Final_Fees']) / df['Initial_Fees']) * 100
+    # Display cleaned dataset
+    st.subheader("Cleaned Dataset Preview")
+    st.dataframe(df)
+
+    # Allow user to download the cleaned dataset
+    cleaned_csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button("Download Cleaned Dataset", cleaned_csv, "cleaned_dataset.csv", "text/csv")
+
+    # Step 6: Proceed to Feature Engineering
+    if st.button("Proceed to Feature Engineering"):
+        st.session_state['dataset_cleaned'] = True
+
+# Step 2: Feature Engineering (Only if dataset is cleaned)
+if 'dataset_cleaned' in st.session_state:
+    st.header("Step 2: Feature Engineering")
 
     # Step 7: Extract Features from Billing Communication using BERT embeddings
     model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -116,14 +130,3 @@ if uploaded_file:
         plt.title(f"Confusion Matrix - {name}")
         st.pyplot(fig)
 
-    # Step 13: Interactive Prediction
-    st.subheader("Make a Prediction")
-    user_input = {feature: st.number_input(feature, value=0.0) for feature in numerical_features}
-    solicitor_input = st.text_input("Assigned Solicitor", "")
-
-    if st.button("Predict Outcome"):
-        user_data = np.array([list(user_input.values()) + [solicitor_input]])
-        user_data_transformed = preprocessor.transform(user_data)
-        prediction = models['Random Forest'].predict(user_data_transformed)[0]
-        predicted_label = label_encoder.inverse_transform([prediction])[0]
-        st.write(f"Predicted Negotiation Outcome: **{predicted_label}**")
