@@ -46,6 +46,7 @@ if uploaded_file:
 
         # Step 4: Handle missing values
         df['Billing_Communication'].fillna("No Communication", inplace=True)
+        df['Billing_Communication_Part2'].fillna("No Communication", inplace=True)
         df['Negotiation_Rounds'].fillna(0, inplace=True)
 
         # Step 5: Define the target variable based on negotiation behavior
@@ -68,6 +69,15 @@ if uploaded_file:
 
         # Step 6: Extract Factors Causing Deviation
         st.header("Step 2: Identify Factors Causing Deviation from H Scale")
+        df['Combined_Communication'] = df['Billing_Communication'] + " " + df['Billing_Communication_Part2']
+
+        # Sentiment Analysis Visualization
+        st.subheader("Sentiment Analysis")
+        vader_analyzer = SentimentIntensityAnalyzer()
+        df['Sentiment_Score'] = df['Combined_Communication'].apply(lambda x: vader_analyzer.polarity_scores(x)['compound'])
+        st.bar_chart(df[['Sentiment_Score']])
+
+        # Text Feature Extraction
         vectorization_method = st.selectbox("Choose text feature extraction method", ["TF-IDF", "Count Vectorizer", "LDA", "NMF"])
         
         if vectorization_method == "TF-IDF":
@@ -76,19 +86,19 @@ if uploaded_file:
             vectorizer = CountVectorizer(stop_words='english', max_features=500)
         elif vectorization_method == "LDA":
             vectorizer = TfidfVectorizer(stop_words='english', max_features=500)
-            tfidf_matrix = vectorizer.fit_transform(df['Billing_Communication'])
+            tfidf_matrix = vectorizer.fit_transform(df['Combined_Communication'])
             lda_model = LatentDirichletAllocation(n_components=5, random_state=42)
             lda_topics = lda_model.fit_transform(tfidf_matrix)
             df['Topic'] = np.argmax(lda_topics, axis=1)
         elif vectorization_method == "NMF":
             vectorizer = TfidfVectorizer(stop_words='english', max_features=500)
-            tfidf_matrix = vectorizer.fit_transform(df['Billing_Communication'])
+            tfidf_matrix = vectorizer.fit_transform(df['Combined_Communication'])
             nmf_model = NMF(n_components=5, random_state=42)
             nmf_topics = nmf_model.fit_transform(tfidf_matrix)
             df['Topic'] = np.argmax(nmf_topics, axis=1)
         
         if vectorization_method in ["TF-IDF", "Count Vectorizer"]:
-            text_features = vectorizer.fit_transform(df['Billing_Communication'])
+            text_features = vectorizer.fit_transform(df['Combined_Communication'])
             num_clusters = 5  # Adjust as necessary
             kmeans = KMeans(n_clusters=num_clusters, random_state=42)
             df['Deviation_Cluster'] = kmeans.fit_predict(text_features)
@@ -99,10 +109,14 @@ if uploaded_file:
             top_words = [vectorizer.get_feature_names_out()[i] for i in np.argsort(kmeans.cluster_centers_[cluster])[-10:]]
             st.write(f"**Category {cluster}:** {', '.join(top_words)}")
 
+        # Store results for later use
+        st.session_state['factors_identified'] = True
+        st.session_state['df_with_factors'] = df.copy()
+
         # Step 7: Proceed to Classification Model
         if st.button("Proceed to Classification Model"):
-            st.session_state['factors_identified'] = True
-            st.session_state['df_with_factors'] = df.copy()
+            st.session_state['classification_ready'] = True
 
     except Exception as e:
         st.error(f"Error processing the uploaded file: {e}")
+
