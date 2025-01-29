@@ -24,16 +24,13 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.cluster import KMeans
 import spacy
-import subprocess
 
-# Ensure spaCy model is installed before loading
-model_name = "en_core_web_sm"
+# Load spaCy model (ensure it's pre-installed in requirements.txt)
 try:
-    nlp = spacy.load(model_name)
+    nlp = spacy.load("en_core_web_sm")
 except OSError:
-    st.warning(f"Downloading spaCy model: {model_name}... This may take a moment.")
-    subprocess.run(["python", "-m", "spacy", "download", model_name], check=True)
-    nlp = spacy.load(model_name)
+    st.error("spaCy model 'en_core_web_sm' is not available. Ensure it's pre-installed in requirements.txt.")
+    nlp = None
 
 # Streamlit App Header
 st.title("Honoria Scale Negotiation Prediction App")
@@ -84,6 +81,8 @@ if uploaded_file:
 
         # Enhanced Semantic Analysis to Extract Key Reasons
         def extract_reasons(text):
+            if nlp is None:
+                return "NLP model not available"
             doc = nlp(text)
             reasons = []
             for ent in doc.ents:
