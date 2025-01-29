@@ -87,65 +87,58 @@ if uploaded_file:
         text_analysis_method = st.selectbox("Choose a Text Analysis Method", ["spaCy", "TF-IDF", "BERT", "LDA", "VADER", "Flair"])
 
         def extract_reasons(text):
-            if text_analysis_method == "spaCy" and nlp:
-                doc = nlp(text)
-                reasons = [ent.text for ent in doc.ents if ent.label_ in ['LAW', 'ORG', 'MONEY', 'GPE']]
-                reasons += [token.text for token in doc if token.dep_ in ['dobj', 'pobj', 'attr', 'nsubj']]
-            elif text_analysis_method == "TF-IDF":
-                vectorizer = TfidfVectorizer(stop_words='english')
-                tfidf_matrix = vectorizer.fit_transform([text])
-                feature_names = vectorizer.get_feature_names_out()
-                scores = tfidf_matrix.toarray().flatten()
-                top_n_words = [feature_names[i] for i in scores.argsort()[-5:]]
-                reasons = ", ".join(top_n_words)
-            elif text_analysis_method == "BERT":
-                summarizer = pipeline("summarization")
-                reasons = summarizer(text, max_length=50, min_length=25, do_sample=False)[0]['summary_text']
-            elif text_analysis_method == "LDA":
-                tokens = word_tokenize(text.lower())
-                dictionary = corpora.Dictionary([tokens])
-                corpus = [dictionary.doc2bow(tokens)]
-                lda_model = models.LdaModel(corpus, num_topics=2, id2word=dictionary, passes=10)
-                topics = lda_model.show_topics(num_words=5, formatted=False)
-                reasons = ", ".join([word for topic in topics for word, _ in topic[1]])
-            elif text_analysis_method == "VADER":
-                analyzer = SentimentIntensityAnalyzer()
-                score = analyzer.polarity_scores(text)['compound']
-                reasons = "Positive" if score > 0.05 else "Negative" if score < -0.05 else "Neutral"
-            elif text_analysis_method == "Flair":
-                classifier = TextClassifier.load("sentiment")
-                sentence = Sentence(text)
-                classifier.predict(sentence)
-                reasons = str(sentence.labels[0])
-            else:
-                reasons = "NLP model unavailable"
+            if not text.strip():
+                return "No relevant text"
+            try:
+                if text_analysis_method == "spaCy" and nlp:
+                    doc = nlp(text)
+                    reasons = [ent.text for ent in doc.ents if ent.label_ in ['LAW', 'ORG', 'MONEY', 'GPE']]
+                    reasons += [token.text for token in doc if token.dep_ in ['dobj', 'pobj', 'attr', 'nsubj']]
+                elif text_analysis_method == "TF-IDF":
+                    vectorizer = TfidfVectorizer(stop_words='english')
+                    tfidf_matrix = vectorizer.fit_transform([text])
+                    feature_names = vectorizer.get_feature_names_out()
+                    scores = tfidf_matrix.toarray().flatten()
+                    top_n_words = [feature_names[i] for i in scores.argsort()[-5:]]
+                    reasons = ", ".join(top_n_words)
+                elif text_analysis_method == "BERT":
+                    summarizer = pipeline("summarization")
+                    reasons = summarizer(text, max_length=50, min_length=25, do_sample=False)[0]['summary_text']
+                elif text_analysis_method == "LDA":
+                    tokens = word_tokenize(text.lower())
+                    dictionary = corpora.Dictionary([tokens])
+                    corpus = [dictionary.doc2bow(tokens)]
+                    lda_model = models.LdaModel(corpus, num_topics=2, id2word=dictionary, passes=10)
+                    topics = lda_model.show_topics(num_words=5, formatted=False)
+                    reasons = ", ".join([word for topic in topics for word, _ in topic[1]])
+                else:
+                    reasons = "NLP method not supported"
+            except Exception as e:
+                st.error(f"Error in text processing: {e}")
+                reasons = "Text analysis failed"
             return reasons
         
-        start_time = time.time()
         df['Deviation_Reasons'] = df['Combined_Communication'].apply(extract_reasons)
-        execution_time = time.time() - start_time
-        
-        # Display Extracted Reasons
-        st.subheader(f"Identified Reasons for Deviation ({text_analysis_method}) - Took {execution_time:.2f} sec")
-        st.dataframe(df[['Case_Reference', 'Assigned_Solicitor', 'Deviation_Reasons']])
 
-        # Step 7: Classification Model
+        # Step 7: Classification Model with Hyperparameter Tuning
         st.header("Step 3: Predicting Negotiation Outcome")
-        numerical_features = ['Negotiation_Rounds', 'Initial_Fees', 'Final_Fees']
-        categorical_features = ['Assigned_Solicitor']
-
-        preprocessor = ColumnTransformer([
-            ('num', StandardScaler(), numerical_features),
-            ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features)
-        ])
-
-        X = df[numerical_features + categorical_features]
-        y = df['Negotiation_Outcome']
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-        model = RandomForestClassifier()
-        pipeline = Pipeline([('preprocessor', preprocessor), ('model', model)])
+        model_choices = {
+            "RandomForest": RandomForestClassifier(),
+            "GradientBoosting": GradientBoostingClassifier(),
+            "XGBoost": XGBClassifier()
+        }
+        param_grids = {
+            "RandomForest": {'n_estimators': [100, 200], 'max_depth': [None, 10]},
+            "GradientBoosting": {'n_estimators': [100, 200], 'learning_rate': [0.01, 0.1]},
+            "XGBoost": {'n_estimators': [100, 200], 'learning_rate': [0.01, 0.1], 'max_depth': [3, 6]}
+        }
+        selected_model_name = st.selectbox("Select a Model for Classification", list(model_choices.keys()))
+        selected_model = model_choices[selected_model_name]
+        param_grid = param_grids[selected_model_name]
+        grid_search = GridSearchCV(selected_model, param_grid, cv=5)
+        pipeline = Pipeline([('preprocessor', preprocessor), ('model', grid_search)])
         pipeline.fit(X_train, y_train)
-        st.text(classification_report(y_test, pipeline.predict(X_test)))
+        st.subheader("Best Model Parameters")
+        st.write(grid_search.best_params_)
     except Exception as e:
         st.error(f"Error processing the uploaded file: {e}")
