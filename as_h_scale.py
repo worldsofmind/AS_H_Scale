@@ -71,12 +71,6 @@ if uploaded_file:
         st.header("Step 2: Identify Factors Causing Deviation from H Scale")
         df['Combined_Communication'] = df['Billing_Communication'] + " " + df['Billing_Communication_Part2']
 
-        # Sentiment Analysis Visualization
-        st.subheader("Sentiment Analysis")
-        vader_analyzer = SentimentIntensityAnalyzer()
-        df['Sentiment_Score'] = df['Combined_Communication'].apply(lambda x: vader_analyzer.polarity_scores(x)['compound'])
-        st.bar_chart(df[['Sentiment_Score']])
-
         # Text Feature Extraction
         vectorization_method = st.selectbox("Choose text feature extraction method", ["TF-IDF", "Count Vectorizer", "LDA", "NMF"])
         
@@ -97,9 +91,9 @@ if uploaded_file:
             nmf_topics = nmf_model.fit_transform(tfidf_matrix)
             df['Topic'] = np.argmax(nmf_topics, axis=1)
         
+        num_clusters = 5  # Ensure num_clusters is defined globally
         if vectorization_method in ["TF-IDF", "Count Vectorizer"]:
             text_features = vectorizer.fit_transform(df['Combined_Communication'])
-            num_clusters = 5  # Adjust as necessary
             kmeans = KMeans(n_clusters=num_clusters, random_state=42)
             df['Deviation_Cluster'] = kmeans.fit_predict(text_features)
 
