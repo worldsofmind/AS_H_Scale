@@ -82,12 +82,13 @@ if uploaded_file:
 
     df_transformed = preprocessor.fit_transform(df)
 
-    # Step 10: Splitting Data with a Safe Train-Test Split
+    # Step 10: Safe Train-Test Split for Small Datasets
     if len(df) >= 5:
         X_train, X_test, y_train, y_test = train_test_split(df_transformed, df['Negotiation_Outcome'], test_size=0.2, random_state=42, stratify=df['Negotiation_Outcome'])
     else:
-        st.error("Not enough samples for proper train-test split. Model training requires at least 5 samples.")
-        st.stop()
+        st.warning("Not enough samples for a proper train-test split. Using all data for training.")
+        X_train, y_train = df_transformed, df['Negotiation_Outcome']
+        X_test, y_test = X_train, y_train  # Use the same data for evaluation
 
     # Step 11: Model Training
     models = {
@@ -126,3 +127,4 @@ if uploaded_file:
         prediction = models['Random Forest'].predict(user_data_transformed)[0]
         predicted_label = label_encoder.inverse_transform([prediction])[0]
         st.write(f"Predicted Negotiation Outcome: **{predicted_label}**")
+
