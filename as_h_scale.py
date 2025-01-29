@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 from sentence_transformers import SentenceTransformer
-from sklearn.decomposition import LatentDirichletAllocation
+from sklearn.decomposition import LatentDirichletAllocation, NMF
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, MinMaxScaler, LabelEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -21,11 +21,13 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from flair.models import TextClassifier
 from flair.data import Sentence
 from sklearn.model_selection import GridSearchCV
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+from sklearn.cluster import KMeans
 
 # Streamlit App Header
 st.title("Honoria Scale Negotiation Prediction App")
 
-# Step 1: Upload Dataset
+# Step 1: Upload Dataset and Clean Data
 st.header("Step 1: Upload and Clean Dataset")
 uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])
 if uploaded_file:
@@ -64,62 +66,43 @@ if uploaded_file:
         cleaned_csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Cleaned Dataset", cleaned_csv, "cleaned_dataset.csv", "text/csv")
 
-        # Step 6: Proceed to Feature Engineering
-        if st.button("Proceed to Feature Engineering"):
-            st.session_state['dataset_cleaned'] = True
-            st.session_state['df_cleaned'] = df.copy()
+        # Step 6: Extract Factors Causing Deviation
+        st.header("Step 2: Identify Factors Causing Deviation from H Scale")
+        vectorization_method = st.selectbox("Choose text feature extraction method", ["TF-IDF", "Count Vectorizer", "LDA", "NMF"])
+        
+        if vectorization_method == "TF-IDF":
+            vectorizer = TfidfVectorizer(stop_words='english', max_features=500)
+        elif vectorization_method == "Count Vectorizer":
+            vectorizer = CountVectorizer(stop_words='english', max_features=500)
+        elif vectorization_method == "LDA":
+            vectorizer = TfidfVectorizer(stop_words='english', max_features=500)
+            tfidf_matrix = vectorizer.fit_transform(df['Billing_Communication'])
+            lda_model = LatentDirichletAllocation(n_components=5, random_state=42)
+            lda_topics = lda_model.fit_transform(tfidf_matrix)
+            df['Topic'] = np.argmax(lda_topics, axis=1)
+        elif vectorization_method == "NMF":
+            vectorizer = TfidfVectorizer(stop_words='english', max_features=500)
+            tfidf_matrix = vectorizer.fit_transform(df['Billing_Communication'])
+            nmf_model = NMF(n_components=5, random_state=42)
+            nmf_topics = nmf_model.fit_transform(tfidf_matrix)
+            df['Topic'] = np.argmax(nmf_topics, axis=1)
+        
+        if vectorization_method in ["TF-IDF", "Count Vectorizer"]:
+            text_features = vectorizer.fit_transform(df['Billing_Communication'])
+            num_clusters = 5  # Adjust as necessary
+            kmeans = KMeans(n_clusters=num_clusters, random_state=42)
+            df['Deviation_Cluster'] = kmeans.fit_predict(text_features)
+
+        # Display Factor Analysis
+        st.subheader("Identified Factors Leading to Deviation")
+        for cluster in range(num_clusters):
+            top_words = [vectorizer.get_feature_names_out()[i] for i in np.argsort(kmeans.cluster_centers_[cluster])[-10:]]
+            st.write(f"**Category {cluster}:** {', '.join(top_words)}")
+
+        # Step 7: Proceed to Classification Model
+        if st.button("Proceed to Classification Model"):
+            st.session_state['factors_identified'] = True
+            st.session_state['df_with_factors'] = df.copy()
 
     except Exception as e:
         st.error(f"Error processing the uploaded file: {e}")
-
-# Step 2: Feature Engineering (Only if dataset is cleaned)
-if 'dataset_cleaned' in st.session_state and 'df_cleaned' in st.session_state:
-    df = st.session_state['df_cleaned']
-    st.header("Step 2: Feature Engineering")
-
-    # Sentiment Analysis using multiple methods
-    vader_analyzer = SentimentIntensityAnalyzer()
-    flair_analyzer = TextClassifier.load('sentiment')
-
-    df['TextBlob_Sentiment'] = df['Billing_Communication'].apply(lambda x: TextBlob(x).sentiment.polarity)
-    df['VADER_Sentiment'] = df['Billing_Communication'].apply(lambda x: vader_analyzer.polarity_scores(x)['compound'])
-    df['Flair_Sentiment'] = df['Billing_Communication'].apply(lambda x: flair_analyzer.predict(Sentence(x)) or 0)
-
-    # Step 7: Extract Features from Billing Communication using BERT embeddings
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    df['BERT_Embeddings'] = df['Billing_Communication'].apply(lambda x: model.encode(x))
-    bert_embeddings = np.vstack(df['BERT_Embeddings'].values)
-
-    # Step 8: Apply LDA Topic Modeling on BERT embeddings with Non-Negativity Constraint
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    bert_embeddings_scaled = scaler.fit_transform(bert_embeddings)
-
-    lda_model = LatentDirichletAllocation(n_components=5, random_state=42)
-    lda_topics = lda_model.fit_transform(bert_embeddings_scaled)
-
-    for i in range(5):
-        df[f'Topic_{i}'] = lda_topics[:, i]
-    df.drop(columns=['BERT_Embeddings'], inplace=True)
-
-    # Step 9: Encoding & Scaling
-    categorical_features = ['Assigned_Solicitor']
-    numerical_features = ['Negotiation_Rounds', 'Initial_Fees', 'Final_Fees', 'TextBlob_Sentiment', 'VADER_Sentiment', 'Flair_Sentiment'] + [f'Topic_{i}' for i in range(5)]
-
-    categorical_transformer = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
-    numerical_transformer = StandardScaler()
-
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('num', numerical_transformer, numerical_features),
-            ('cat', categorical_transformer, categorical_features)
-        ])
-
-    df_transformed = preprocessor.fit_transform(df)
-
-    # Step 10: Safe Train-Test Split for Small Datasets
-    if len(df) >= 5:
-        X_train, X_test, y_train, y_test = train_test_split(df_transformed, df['Negotiation_Outcome'], test_size=0.2, random_state=42, stratify=df['Negotiation_Outcome'])
-    else:
-        st.warning("Not enough samples for a proper train-test split. Using all data for training.")
-        X_train, y_train = df_transformed, df['Negotiation_Outcome']
-        X_test, y_test = X_train, y_train  # Use the same data for evaluation
