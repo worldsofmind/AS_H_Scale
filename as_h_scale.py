@@ -26,12 +26,14 @@ from sklearn.cluster import KMeans
 import spacy
 import subprocess
 
-# Ensure spaCy model is downloaded
+# Ensure spaCy model is installed before loading
+model_name = "en_core_web_sm"
 try:
-    nlp = spacy.load("en_core_web_sm")
+    nlp = spacy.load(model_name)
 except OSError:
-    subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
-    nlp = spacy.load("en_core_web_sm")
+    st.warning(f"Downloading spaCy model: {model_name}... This may take a moment.")
+    subprocess.run(["python", "-m", "spacy", "download", model_name], check=True)
+    nlp = spacy.load(model_name)
 
 # Streamlit App Header
 st.title("Honoria Scale Negotiation Prediction App")
@@ -109,7 +111,6 @@ if uploaded_file:
             # Feature Engineering
             categorical_features = ['Assigned_Solicitor']
             numerical_features = ['Negotiation_Rounds', 'Initial_Fees', 'Final_Fees']
-            text_features = ['Deviation_Reasons']
             
             categorical_transformer = OneHotEncoder(handle_unknown='ignore')
             numerical_transformer = StandardScaler()
@@ -157,4 +158,3 @@ if uploaded_file:
     
     except Exception as e:
         st.error(f"Error processing the uploaded file: {e}")
-
