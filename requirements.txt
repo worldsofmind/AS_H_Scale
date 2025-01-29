@@ -5,6 +5,10 @@ scikit-learn
 matplotlib
 seaborn
 shap
+xgboost
 sentence-transformers
 openpyxl
-xgboost
+textblob
+vaderSentiment
+flair
+torch
