@@ -97,10 +97,58 @@ if uploaded_file:
         st.session_state['reasons_identified'] = True
         st.session_state['df_with_reasons'] = df.copy()
 
-        # Step 7: Proceed to Classification Model
-        if st.button("Proceed to Classification Model"):
-            st.session_state['classification_ready'] = True
-
+        # Step 7: Classification Model
+        if st.session_state.get('classification_ready'):
+            st.header("Step 3: Classification Model")
+            
+            # Feature Engineering
+            categorical_features = ['Assigned_Solicitor']
+            numerical_features = ['Negotiation_Rounds', 'Initial_Fees', 'Final_Fees']
+            text_features = ['Deviation_Reasons']
+            
+            categorical_transformer = OneHotEncoder(handle_unknown='ignore')
+            numerical_transformer = StandardScaler()
+            
+            preprocessor = ColumnTransformer(
+                transformers=[
+                    ('num', numerical_transformer, numerical_features),
+                    ('cat', categorical_transformer, categorical_features)
+                ])
+            
+            # Model Selection
+            model_choice = st.selectbox("Choose a Classification Model", ["Random Forest", "Gradient Boosting", "Logistic Regression", "SVM", "XGBoost"])
+            model_dict = {
+                "Random Forest": RandomForestClassifier(),
+                "Gradient Boosting": GradientBoostingClassifier(),
+                "Logistic Regression": LogisticRegression(),
+                "SVM": SVC(),
+                "XGBoost": XGBClassifier()
+            }
+            
+            model = model_dict[model_choice]
+            
+            # Train-Test Split
+            X = df[numerical_features + categorical_features]
+            y = df['Negotiation_Outcome']
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+            
+            pipeline = Pipeline([
+                ('preprocessor', preprocessor),
+                ('classifier', model)
+            ])
+            
+            pipeline.fit(X_train, y_train)
+            y_pred = pipeline.predict(X_test)
+            
+            # Display Metrics
+            st.subheader("Model Performance")
+            st.text(classification_report(y_test, y_pred))
+            
+            # Confusion Matrix
+            cm = confusion_matrix(y_test, y_pred)
+            fig, ax = plt.subplots()
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+            st.pyplot(fig)
+    
     except Exception as e:
         st.error(f"Error processing the uploaded file: {e}")
-
