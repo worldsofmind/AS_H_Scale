@@ -22,7 +22,7 @@ st.title("Honoria Scale Negotiation Prediction App")
 # Step 1: Upload Dataset
 uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])
 if uploaded_file:
-    df = pd.read_excel(uploaded_file, engine="openpyxl")  # Explicitly specify openpyxl engine
+    df = pd.read_excel(uploaded_file, engine="openpyxl")  # Explicitly specify openpyxl engine
 
     # Step 2: Rename columns for easier handling
     df.columns = ['Case_Reference', 'Assigned_Solicitor', 'Negotiation_Rounds',
@@ -82,11 +82,18 @@ if uploaded_file:
 
     df_transformed = preprocessor.fit_transform(df)
 
-    # Step 10: Splitting Data using StratifiedKFold
+    # Step 10: Splitting Data using StratifiedKFold with Shuffle
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    train_index, test_index = next(skf.split(df_transformed, df['Negotiation_Outcome']))
-    X_train, X_test = df_transformed[train_index], df_transformed[test_index]
-    y_train, y_test = df['Negotiation_Outcome'][train_index], df['Negotiation_Outcome'][test_index]
+
+    try:
+        train_index, test_index = next(skf.split(df_transformed, df['Negotiation_Outcome']))
+        X_train, X_test = df_transformed[train_index], df_transformed[test_index]
+        y_train, y_test = df['Negotiation_Outcome'][train_index], df['Negotiation_Outcome'][test_index]
+
+    except ValueError as e:
+        st.error(f"Error during data splitting: {e}")
+        st.warning("Please check your data for class imbalance or missing values.")
+        return
 
     # Step 11: Model Training
     models = {
@@ -97,7 +104,7 @@ if uploaded_file:
 
     for name, model in models.items():
         model.fit(X_train, y_train)
-    
+
     # Step 12: Model Evaluation
     st.subheader("Model Performance")
     for name, model in models.items():
