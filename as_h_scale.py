@@ -127,4 +127,3 @@ if uploaded_file:
         prediction = models['Random Forest'].predict(user_data_transformed)[0]
         predicted_label = label_encoder.inverse_transform([prediction])[0]
         st.write(f"Predicted Negotiation Outcome: **{predicted_label}**")
-
