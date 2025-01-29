@@ -24,9 +24,14 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.cluster import KMeans
 import spacy
+import subprocess
 
-# Load NLP Model
-nlp = spacy.load("en_core_web_sm")
+# Ensure spaCy model is downloaded
+try:
+    nlp = spacy.load("en_core_web_sm")
+except OSError:
+    subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
+    nlp = spacy.load("en_core_web_sm")
 
 # Streamlit App Header
 st.title("Honoria Scale Negotiation Prediction App")
