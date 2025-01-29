@@ -103,9 +103,9 @@ if 'dataset_cleaned' in st.session_state and 'df_cleaned' in st.session_state:
 
     # Step 9: Encoding & Scaling
     categorical_features = ['Assigned_Solicitor']
-    numerical_features = ['Negotiation_Rounds', 'Initial_Fees', 'Final_Fees', 'Fee_Reduction_Percentage', 'TextBlob_Sentiment', 'VADER_Sentiment', 'Flair_Sentiment'] + [f'Topic_{i}' for i in range(5)]
+    numerical_features = ['Negotiation_Rounds', 'Initial_Fees', 'Final_Fees', 'TextBlob_Sentiment', 'VADER_Sentiment', 'Flair_Sentiment'] + [f'Topic_{i}' for i in range(5)]
 
-    categorical_transformer = OneHotEncoder(handle_unknown='ignore', sparse=False)
+    categorical_transformer = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
     numerical_transformer = StandardScaler()
 
     preprocessor = ColumnTransformer(
@@ -123,17 +123,3 @@ if 'dataset_cleaned' in st.session_state and 'df_cleaned' in st.session_state:
         st.warning("Not enough samples for a proper train-test split. Using all data for training.")
         X_train, y_train = df_transformed, df['Negotiation_Outcome']
         X_test, y_test = X_train, y_train  # Use the same data for evaluation
-
-    # Step 11: Model Selection and Hyperparameter Tuning
-    model_choice = st.selectbox("Choose a model", ["Random Forest", "Gradient Boosting", "Logistic Regression", "SVM", "XGBoost"])
-    param_grid = {
-        'Random Forest': {'n_estimators': [50, 100, 200], 'max_depth': [3, 5, 7]},
-        'Gradient Boosting': {'n_estimators': [50, 100, 200], 'learning_rate': [0.01, 0.1, 0.2]},
-        'XGBoost': {'n_estimators': [50, 100, 200], 'learning_rate': [0.01, 0.1, 0.2], 'max_depth': [3, 5, 7]}
-    }
-    
-    model = eval(model_choice.replace(" ", "_"))()
-    grid_search = GridSearchCV(model, param_grid.get(model_choice, {}), cv=3)
-    grid_search.fit(X_train, y_train)
-    best_model = grid_search.best_estimator_
-    st.write(f"Best Hyperparameters for {model_choice}: {grid_search.best_params_}")
