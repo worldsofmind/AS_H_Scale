@@ -24,12 +24,17 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.cluster import KMeans
 import spacy
+from transformers import pipeline
+from gensim import corpora, models
+import nltk
+from nltk.tokenize import word_tokenize
+import time
 
 # Load spaCy model (ensure it's pre-installed in requirements.txt)
 try:
     nlp = spacy.load("en_core_web_sm")
 except OSError:
-    st.error("spaCy model 'en_core_web_sm' is not available. Ensure it's pre-installed in requirements.txt.")
+    st.warning("spaCy model 'en_core_web_sm' is not available. The app will proceed without NLP analysis.")
     nlp = None
 
 # Streamlit App Header
@@ -79,81 +84,68 @@ if uploaded_file:
         st.header("Step 2: Analyze Reasons for Deviation")
         df['Combined_Communication'] = df['Billing_Communication'] + " " + df['Billing_Communication_Part2']
 
-        # Enhanced Semantic Analysis to Extract Key Reasons
+        text_analysis_method = st.selectbox("Choose a Text Analysis Method", ["spaCy", "TF-IDF", "BERT", "LDA", "VADER", "Flair"])
+
         def extract_reasons(text):
-            if nlp is None:
-                return "NLP model not available"
-            doc = nlp(text)
-            reasons = []
-            for ent in doc.ents:
-                if ent.label_ in ['LAW', 'ORG', 'MONEY', 'GPE']:  # Extract legal/financial entities
-                    reasons.append(ent.text)
-            for token in doc:
-                if token.dep_ in ['dobj', 'pobj', 'attr', 'nsubj'] and token.pos_ in ['NOUN', 'PROPN']:
-                    reasons.append(token.text)
-            return ", ".join(set(reasons))
+            if text_analysis_method == "spaCy" and nlp:
+                doc = nlp(text)
+                reasons = [ent.text for ent in doc.ents if ent.label_ in ['LAW', 'ORG', 'MONEY', 'GPE']]
+                reasons += [token.text for token in doc if token.dep_ in ['dobj', 'pobj', 'attr', 'nsubj']]
+            elif text_analysis_method == "TF-IDF":
+                vectorizer = TfidfVectorizer(stop_words='english')
+                tfidf_matrix = vectorizer.fit_transform([text])
+                feature_names = vectorizer.get_feature_names_out()
+                scores = tfidf_matrix.toarray().flatten()
+                top_n_words = [feature_names[i] for i in scores.argsort()[-5:]]
+                reasons = ", ".join(top_n_words)
+            elif text_analysis_method == "BERT":
+                summarizer = pipeline("summarization")
+                reasons = summarizer(text, max_length=50, min_length=25, do_sample=False)[0]['summary_text']
+            elif text_analysis_method == "LDA":
+                tokens = word_tokenize(text.lower())
+                dictionary = corpora.Dictionary([tokens])
+                corpus = [dictionary.doc2bow(tokens)]
+                lda_model = models.LdaModel(corpus, num_topics=2, id2word=dictionary, passes=10)
+                topics = lda_model.show_topics(num_words=5, formatted=False)
+                reasons = ", ".join([word for topic in topics for word, _ in topic[1]])
+            elif text_analysis_method == "VADER":
+                analyzer = SentimentIntensityAnalyzer()
+                score = analyzer.polarity_scores(text)['compound']
+                reasons = "Positive" if score > 0.05 else "Negative" if score < -0.05 else "Neutral"
+            elif text_analysis_method == "Flair":
+                classifier = TextClassifier.load("sentiment")
+                sentence = Sentence(text)
+                classifier.predict(sentence)
+                reasons = str(sentence.labels[0])
+            else:
+                reasons = "NLP model unavailable"
+            return reasons
         
+        start_time = time.time()
         df['Deviation_Reasons'] = df['Combined_Communication'].apply(extract_reasons)
+        execution_time = time.time() - start_time
         
         # Display Extracted Reasons
-        st.subheader("Identified Reasons for Deviation")
+        st.subheader(f"Identified Reasons for Deviation ({text_analysis_method}) - Took {execution_time:.2f} sec")
         st.dataframe(df[['Case_Reference', 'Assigned_Solicitor', 'Deviation_Reasons']])
-        
-        # Store extracted reasons for later use
-        st.session_state['reasons_identified'] = True
-        st.session_state['df_with_reasons'] = df.copy()
 
         # Step 7: Classification Model
-        if st.session_state.get('classification_ready'):
-            st.header("Step 3: Classification Model")
-            
-            # Feature Engineering
-            categorical_features = ['Assigned_Solicitor']
-            numerical_features = ['Negotiation_Rounds', 'Initial_Fees', 'Final_Fees']
-            
-            categorical_transformer = OneHotEncoder(handle_unknown='ignore')
-            numerical_transformer = StandardScaler()
-            
-            preprocessor = ColumnTransformer(
-                transformers=[
-                    ('num', numerical_transformer, numerical_features),
-                    ('cat', categorical_transformer, categorical_features)
-                ])
-            
-            # Model Selection
-            model_choice = st.selectbox("Choose a Classification Model", ["Random Forest", "Gradient Boosting", "Logistic Regression", "SVM", "XGBoost"])
-            model_dict = {
-                "Random Forest": RandomForestClassifier(),
-                "Gradient Boosting": GradientBoostingClassifier(),
-                "Logistic Regression": LogisticRegression(),
-                "SVM": SVC(),
-                "XGBoost": XGBClassifier()
-            }
-            
-            model = model_dict[model_choice]
-            
-            # Train-Test Split
-            X = df[numerical_features + categorical_features]
-            y = df['Negotiation_Outcome']
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-            
-            pipeline = Pipeline([
-                ('preprocessor', preprocessor),
-                ('classifier', model)
-            ])
-            
-            pipeline.fit(X_train, y_train)
-            y_pred = pipeline.predict(X_test)
-            
-            # Display Metrics
-            st.subheader("Model Performance")
-            st.text(classification_report(y_test, y_pred))
-            
-            # Confusion Matrix
-            cm = confusion_matrix(y_test, y_pred)
-            fig, ax = plt.subplots()
-            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-            st.pyplot(fig)
-    
+        st.header("Step 3: Predicting Negotiation Outcome")
+        numerical_features = ['Negotiation_Rounds', 'Initial_Fees', 'Final_Fees']
+        categorical_features = ['Assigned_Solicitor']
+
+        preprocessor = ColumnTransformer([
+            ('num', StandardScaler(), numerical_features),
+            ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features)
+        ])
+
+        X = df[numerical_features + categorical_features]
+        y = df['Negotiation_Outcome']
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+        model = RandomForestClassifier()
+        pipeline = Pipeline([('preprocessor', preprocessor), ('model', model)])
+        pipeline.fit(X_train, y_train)
+        st.text(classification_report(y_test, pipeline.predict(X_test)))
     except Exception as e:
         st.error(f"Error processing the uploaded file: {e}")
