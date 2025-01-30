@@ -41,7 +41,8 @@ def preprocess_text(text):
     text = re.sub(r'\s+', ' ', text).strip()  # Remove extra spaces
     return text
 
-def extract_keywords_tfidf(text_series, ngram_range=(1,2), top_n=20):
+def extract_keywords_tfidf(df, ngram_range=(1,2), top_n=20):
+    text_series = df.select_dtypes(include=['object']).apply(lambda x: ' '.join(x), axis=1)  # Combine all text columns
     text_series = text_series.apply(preprocess_text)  # Preprocess text
     
     vectorizer = TfidfVectorizer(ngram_range=ngram_range, stop_words='english')
@@ -64,7 +65,11 @@ uploaded_file = st.sidebar.file_uploader("Upload your Excel file", type=["xlsx"]
 
 if uploaded_file is not None:
     try:
-        d
+        df = pd.read_excel(uploaded_file, engine='openpyxl')
+        st.write("### Raw Data:")
+        st.dataframe(df.head())
+        
+        df_cleaned = clean_data(df)
         st.write("### Cleaned Data:")
         st.dataframe(df_cleaned.head())
         
@@ -81,20 +86,12 @@ if uploaded_file is not None:
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
         
-        # Extract TF-IDF Keywords
-        text_column = st.sidebar.selectbox("Select Column for TF-IDF Analysis", df_cleaned.select_dtypes(include=['object']).columns)
-        if text_column:
-            top_keywords = extract_keywords_tfidf(df_cleaned[text_column])
-            st.write("### Top Keywords (TF-IDF)")
-            st.write(top_keywords)
+        # Extract TF-IDF Keywords from entire document
+        top_keywords = extract_keywords_tfidf(df_cleaned)
+        st.write("### Top Keywords (TF-IDF)")
+        st.write(top_keywords)
         
         logging.info("File processed and ready for download.")
     except Exception as e:
         st.error(f"Error loading file: {e}")
         logging.error(f"Error encountered: {e}")
-f = pd.read_excel(uploaded_file, engine='openpyxl')
-        
-        st.write("### Raw Data:")
-        st.dataframe(df.head())
-        
-        df_cleaned = clean_data(df)
