@@ -12,13 +12,28 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MultiLabelBinarizer
 
-# Load Hugging Face NER model with optimized settings
-try:
-    ner_pipeline = pipeline("ner", model="dslim/bert-base-NER", tokenizer="dslim/bert-base-NER", aggregation_strategy="simple")
-    summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
-except Exception as e:
-    st.error(f"Error loading transformer models: {e}")
-    ner_pipeline, summarizer = None, None
+# Download necessary NLTK resources
+nltk.download('punkt')
+
+# Caching transformer model loading for efficiency
+@st.cache_data
+def load_ner_model():
+    try:
+        return pipeline("ner", model="dslim/bert-base-NER", tokenizer="dslim/bert-base-NER", aggregation_strategy="simple")
+    except Exception as e:
+        st.error(f"Error loading NER model: {e}")
+        return None
+
+@st.cache_data
+def load_summarizer_model():
+    try:
+        return pipeline("summarization", model="facebook/bart-large-cnn")
+    except Exception as e:
+        st.error(f"Error loading Summarizer model: {e}")
+        return None
+
+ner_pipeline = load_ner_model()
+summarizer = load_summarizer_model()
 
 # Streamlit App Header
 st.title("Honoria Scale Negotiation Analysis App")
@@ -28,7 +43,7 @@ st.header("Step 1: Upload and Clean Dataset")
 uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])
 if uploaded_file:
     try:
-        df = pd.read_excel(uploaded_file, engine="openpyxl")  # Explicitly specify openpyxl engine
+        df = pd.read_excel(uploaded_file, engine="openpyxl")
 
         # Step 2: Rename columns for easier handling
         df.columns = ['Case_Reference', 'Assigned_Solicitor', 'Negotiation_Rounds',
