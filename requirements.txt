@@ -5,7 +5,6 @@ scikit-learn
 transformers
 gensim
 nltk
+numpy
 seaborn
 matplotlib
-numpy
-openpyxl
