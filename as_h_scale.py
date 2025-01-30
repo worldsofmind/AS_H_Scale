@@ -60,18 +60,15 @@ if uploaded_file is not None:
             with pd.ExcelWriter(temp_file.name, engine='xlsxwriter') as writer:
                 df_cleaned.to_excel(writer, index=False, sheet_name="Cleaned Data")
             
-            st.download_button(
-                label="Download Cleaned Data",
-                data=open(temp_file.name, "rb"),
-                file_name="cleaned_data.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            with open(temp_file.name, "rb") as f:
+                st.download_button(
+                    label="Download Cleaned Data",
+                    data=f,
+                    file_name="cleaned_data.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
         
         logging.info("File processed and ready for download.")
-    except Exception as e:
-        st.error(f"Error loading file: {e}")
-        logging.error(f"Error encountered: {e}")
-)
     except Exception as e:
         st.error(f"Error loading file: {e}")
         logging.error(f"Error encountered: {e}")
