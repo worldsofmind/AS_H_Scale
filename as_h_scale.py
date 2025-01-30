@@ -36,8 +36,27 @@ def clean_data(df):
     
     return df_cleaned
 
+def extract_keywords_tfidf(df, ngram_range=(1,2), top_n=20):
+    text_series = df.select_dtypes(include=['object']).apply(lambda x: ' '.join(x), axis=1)
+    vectorizer = TfidfVectorizer(ngram_range=ngram_range, stop_words='english')
+    tfidf_matrix = vectorizer.fit_transform(text_series)
+    feature_names = vectorizer.get_feature_names_out()
+    
+    scores = tfidf_matrix.sum(axis=0).A1
+    keyword_scores = dict(zip(feature_names, scores))
+    
+    top_keywords = dict(Counter(keyword_scores).most_common(top_n))
+    return top_keywords
+
+def compute_text_similarity(df):
+    text_series = df.select_dtypes(include=['object']).apply(lambda x: ' '.join(x), axis=1)
+    vectorizer = TfidfVectorizer(stop_words='english')
+    tfidf_matrix = vectorizer.fit_transform(text_series)
+    similarity_matrix = cosine_similarity(tfidf_matrix)
+    
+    return similarity_matrix
+
 def extract_named_entities(text_series):
-    """Simple regex-based NER for identifying legal entities."""
     entity_patterns = {
         'LEGAL_TERMS': r'\b(contract|agreement|negotiation|settlement|lawsuit|bill|litigation|damages|contractual|breach)\b'
     }
@@ -48,9 +67,8 @@ def extract_named_entities(text_series):
             matches = re.findall(pattern, text, re.IGNORECASE)
             entities[entity].extend(matches)
     
-    return {key: list(set(value)) for key, value in entities.items()}  # Remove duplicates
+    return {key: list(set(value)) for key, value in entities.items()}
 
-# Initialize logging
 logging.basicConfig(level=logging.INFO)
 st.sidebar.title("Settings")
 
@@ -66,12 +84,18 @@ if uploaded_file is not None:
         st.write("### Cleaned Data:")
         st.dataframe(df_cleaned.head())
         
-        # Extract Named Entity Recognition (NER)
         named_entities = extract_named_entities(df_cleaned.select_dtypes(include=['object']).apply(lambda x: ' '.join(x), axis=1))
         st.write("### Named Entity Recognition (NER)")
         st.write(named_entities)
         
-        # Add tooltips for explanations
+        top_keywords = extract_keywords_tfidf(df_cleaned)
+        st.write("### Top Keywords (TF-IDF)")
+        st.write(top_keywords)
+        
+        similarity_matrix = compute_text_similarity(df_cleaned)
+        st.write("### Text Similarity (Cosine Similarity)")
+        st.write(similarity_matrix)
+        
         st.markdown("""
         <div title='TF-IDF (Term Frequency-Inverse Document Frequency) ranks words based on their importance. 
         It gives higher scores to words that appear frequently in a document but not in many other documents. 
