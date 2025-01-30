@@ -91,6 +91,15 @@ if uploaded_file is not None:
         st.write("### Top Keywords (TF-IDF)")
         st.write(top_keywords)
         
+        # Add mouse-over tooltip for TF-IDF explanation
+        st.markdown("""
+        <div title='TF-IDF (Term Frequency-Inverse Document Frequency) ranks words based on their importance. 
+        It gives higher scores to words that appear frequently in a document but not in many other documents. 
+        This helps identify key topics while filtering out common words like "the" or "and".'>
+        ℹ️ **What is TF-IDF?** (Hover to learn more)
+        </div>
+        """, unsafe_allow_html=True)
+        
         logging.info("File processed and ready for download.")
     except Exception as e:
         st.error(f"Error loading file: {e}")
