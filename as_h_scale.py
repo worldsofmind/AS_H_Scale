@@ -94,6 +94,9 @@ def extract_named_entities(text_series):
 logging.basicConfig(level=logging.INFO)
 st.sidebar.title("Settings")
 
+# Add a slider to adjust Cosine Similarity threshold
+similarity_threshold = st.sidebar.slider("Set Cosine Similarity Threshold", min_value=0.1, max_value=1.0, value=0.5, step=0.1)
+
 uploaded_file = st.sidebar.file_uploader("Upload your Excel file", type=["xlsx"])
 
 if uploaded_file is not None:
@@ -114,7 +117,7 @@ if uploaded_file is not None:
         st.write("### Top Keywords (TF-IDF)")
         st.write(top_keywords)
         
-        similarity_results = compute_text_similarity(df_cleaned)
+        similarity_results = compute_text_similarity(df_cleaned, threshold=similarity_threshold)
         st.write("### Top Similar Texts (Cosine Similarity)")
         st.write(similarity_results)
         
