@@ -1,46 +1,43 @@
-import pandas as pd
 import streamlit as st
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
+import pandas as pd
+import io
 
-# Streamlit App Header
-st.title("Honoria Scale Negotiation Analysis App")
-
-# Step 1: Upload Dataset and Clean Data
-st.header("Step 1: Upload and Clean Dataset")
-uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])
-if uploaded_file:
-    try:
-        # Ensure openpyxl is installed
-        try:
-            import openpyxl
-        except ImportError:
-            st.error("Missing optional dependency 'openpyxl'. Please install it using pip install openpyxl.")
-            st.stop()
-        
-        df = pd.read_excel(uploaded_file, engine="openpyxl")
-
-        # Step 2: Rename columns for easier handling
-        df.columns = ['Case_Reference', 'Assigned_Solicitor', 'Negotiation_Rounds',
-                      'Billing_Communication', 'Billing_Communication_Part2', 'Initial_Fees', 'Final_Fees',
-                      'Pre_H_Scale_Guidelines']
-
-        # Step 3: Convert numerical columns to numeric types
-        df['Initial_Fees'] = pd.to_numeric(df['Initial_Fees'], errors='coerce')
-        df['Final_Fees'] = pd.to_numeric(df['Final_Fees'], errors='coerce')
-        df['Negotiation_Rounds'] = pd.to_numeric(df['Negotiation_Rounds'], errors='coerce')
-
-        # Step 4: Handle missing values
-        df.fillna("No Communication", inplace=True)
-
-        # Display cleaned dataset
-        st.subheader("Cleaned Dataset Preview")
-        st.dataframe(df)
-
-        # Allow user to download the cleaned dataset
-        cleaned_csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("Download Cleaned Dataset", cleaned_csv, "cleaned_dataset.csv", "text/csv")
+def clean_data(df):
+    """Function to clean and preprocess the data."""
+    # Drop duplicates
+    df = df.drop_duplicates()
     
-    except Exception as e:
-        st.error(f"Error processing the uploaded file: {e}")
+    # Drop rows with all missing values
+    df = df.dropna(how='all')
+    
+    # Fill missing values with empty strings
+    df = df.fillna('')
+    
+    # Normalize text columns (lowercasing, stripping spaces)
+    for col in df.select_dtypes(include=['object']).columns:
+        df[col] = df[col].str.strip().str.lower()
+    
+    return df
+
+st.title("Data Cleaning & Processing App")
+
+uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx", "xls"])
+
+if uploaded_file is not None:
+    df = pd.read_excel(uploaded_file)
+    st.write("Raw Data:")
+    st.dataframe(df.head())
+    
+    cleaned_df = clean_data(df)
+    st.write("Cleaned Data:")
+    st.dataframe(cleaned_df.head())
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        cleaned_df.to_excel(writer, index=False, sheet_name='Cleaned Data')
+    output.seek(0)
+    
+    st.download_button(label="Download Cleaned Data",
+                       data=output,
+                       file_name="cleaned_data.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
