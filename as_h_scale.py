@@ -51,10 +51,6 @@ if uploaded_file is not None:
         st.write("### Cleaned Data:")
         st.dataframe(df_cleaned.head())
         
-        # Display summary statistics
-        st.write("### Data Summary")
-        st.write(df_cleaned.describe(include='all'))
-        
         # Optimize file download handling
         with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as temp_file:
             with pd.ExcelWriter(temp_file.name, engine='xlsxwriter') as writer:
@@ -71,4 +67,6 @@ if uploaded_file is not None:
         logging.info("File processed and ready for download.")
     except Exception as e:
         st.error(f"Error loading file: {e}")
+        logging.error(f"Error encountered: {e}")
+
         logging.error(f"Error encountered: {e}")
