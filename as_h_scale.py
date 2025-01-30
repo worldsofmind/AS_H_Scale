@@ -48,13 +48,29 @@ def extract_keywords_tfidf(df, ngram_range=(1,2), top_n=20):
     top_keywords = dict(Counter(keyword_scores).most_common(top_n))
     return top_keywords
 
-def compute_text_similarity(df):
+def compute_text_similarity(df, threshold=0.5, top_n=5):
     text_series = df.select_dtypes(include=['object']).apply(lambda x: ' '.join(x), axis=1)
     vectorizer = TfidfVectorizer(stop_words='english')
     tfidf_matrix = vectorizer.fit_transform(text_series)
     similarity_matrix = cosine_similarity(tfidf_matrix)
     
-    return similarity_matrix
+    similar_pairs = []
+    for i in range(len(text_series)):
+        for j in range(i + 1, len(text_series)):
+            if similarity_matrix[i, j] > threshold:
+                similar_pairs.append((i, j, similarity_matrix[i, j]))
+    
+    similar_pairs = sorted(similar_pairs, key=lambda x: x[2], reverse=True)[:top_n]
+    
+    results = []
+    for i, j, score in similar_pairs:
+        results.append({
+            'Text 1': text_series[i],
+            'Text 2': text_series[j],
+            'Similarity Score': round(score, 2)
+        })
+    
+    return results
 
 def extract_named_entities(text_series):
     entity_patterns = {
@@ -92,9 +108,9 @@ if uploaded_file is not None:
         st.write("### Top Keywords (TF-IDF)")
         st.write(top_keywords)
         
-        similarity_matrix = compute_text_similarity(df_cleaned)
-        st.write("### Text Similarity (Cosine Similarity)")
-        st.write(similarity_matrix)
+        similarity_results = compute_text_similarity(df_cleaned)
+        st.write("### Top Similar Texts (Cosine Similarity)")
+        st.write(similarity_results)
         
         st.markdown("""
         <div title='TF-IDF (Term Frequency-Inverse Document Frequency) ranks words based on their importance. 
@@ -108,7 +124,8 @@ if uploaded_file is not None:
         </div>
         <div title='Cosine Similarity is a way to measure how similar two pieces of text are. 
         It works by converting text into numerical vectors and calculating the angle between them. 
-        A similarity score closer to 1 means the texts are very similar, while a score closer to 0 means they are different.'>
+        A similarity score closer to 1 means the texts are very similar, while a score closer to 0 means they are different. 
+        This section displays the **top similar text pairs** based on a similarity threshold.'>
         ℹ️ **What is Cosine Similarity?** (Hover to learn more)
         </div>
         """, unsafe_allow_html=True)
