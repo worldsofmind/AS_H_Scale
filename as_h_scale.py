@@ -6,6 +6,8 @@ import openpyxl
 import xlsxwriter
 import logging
 import tempfile
+from sklearn.feature_extraction.text import TfidfVectorizer
+from collections import Counter
 
 def clean_data(df):
     # Standardize column names
@@ -32,6 +34,19 @@ def clean_data(df):
     df_cleaned[text_columns] = df_cleaned[text_columns].replace(r'[^\w\s]', '', regex=True).replace(r'\s+', ' ', regex=True)
     
     return df_cleaned
+
+def extract_keywords_tfidf(text_series, ngram_range=(1,2), top_n=20):
+    vectorizer = TfidfVectorizer(ngram_range=ngram_range, stop_words='english')
+    tfidf_matrix = vectorizer.fit_transform(text_series)
+    feature_names = vectorizer.get_feature_names_out()
+    
+    # Sum up the TF-IDF scores for each word
+    scores = tfidf_matrix.sum(axis=0).A1
+    keyword_scores = dict(zip(feature_names, scores))
+    
+    # Get the top N keywords
+    top_keywords = dict(Counter(keyword_scores).most_common(top_n))
+    return top_keywords
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -64,9 +79,14 @@ if uploaded_file is not None:
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
         
+        # Extract TF-IDF Keywords
+        text_column = st.sidebar.selectbox("Select Column for TF-IDF Analysis", df_cleaned.select_dtypes(include=['object']).columns)
+        if text_column:
+            top_keywords = extract_keywords_tfidf(df_cleaned[text_column])
+            st.write("### Top Keywords (TF-IDF)")
+            st.write(top_keywords)
+        
         logging.info("File processed and ready for download.")
     except Exception as e:
         st.error(f"Error loading file: {e}")
-        logging.error(f"Error encountered: {e}")
-
         logging.error(f"Error encountered: {e}")
