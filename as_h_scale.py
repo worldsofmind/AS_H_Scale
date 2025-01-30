@@ -24,7 +24,11 @@ st.title("Data Cleaning & Processing App")
 uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx", "xls"])
 
 if uploaded_file is not None:
-    df = pd.read_excel(uploaded_file)
+    if uploaded_file.name.endswith(".xls"):
+        df = pd.read_excel(uploaded_file, engine="xlrd")
+    else:
+        df = pd.read_excel(uploaded_file, engine="openpyxl")
+    
     st.write("Raw Data:")
     st.dataframe(df.head())
     
@@ -41,3 +45,4 @@ if uploaded_file is not None:
                        data=output,
                        file_name="cleaned_data.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
