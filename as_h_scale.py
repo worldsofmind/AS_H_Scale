@@ -8,12 +8,20 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
 import nltk
+import os
 from presidio_analyzer import AnalyzerEngine
 from presidio_anonymizer import AnonymizerEngine
 
-nltk.download('stopwords')
-nltk.download('punkt')
-nltk.download('wordnet')
+# Set NLTK data path to avoid permission errors
+nltk_data_path = os.path.expanduser("~/nltk_data")
+nltk.data.path.append(nltk_data_path)
+
+# Download NLTK resources only if not already available
+for resource in ["stopwords", "punkt", "wordnet"]:
+    try:
+        nltk.data.find(f"corpora/{resource}")
+    except LookupError:
+        nltk.download(resource, download_dir=nltk_data_path)
 
 stop_words = set(stopwords.words('english'))
 lemmatizer = WordNetLemmatizer()
@@ -29,6 +37,9 @@ def mask_entities_presidio(text):
 
 def clean_data(df):
     """Function to clean and preprocess the data."""
+    if df is None or df.empty:
+        return df
+    
     # Drop duplicates
     df = df.drop_duplicates()
     
@@ -40,6 +51,7 @@ def clean_data(df):
     
     # Normalize text columns (lowercasing, stripping spaces, removing accents, removing special characters, expanding contractions)
     for col in df.select_dtypes(include=['object']).columns:
+        df[col] = df[col].astype(str)
         df[col] = df[col].str.strip().str.lower()
         df[col] = df[col].apply(lambda x: unidecode.unidecode(x))  # Remove accents
         df[col] = df[col].apply(lambda x: contractions.fix(x))  # Expand contractions
@@ -60,24 +72,27 @@ st.title("Data Cleaning & Processing App")
 uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx", "xls"])
 
 if uploaded_file is not None:
-    if uploaded_file.name.endswith(".xls"):
-        df = pd.read_excel(uploaded_file, engine="xlrd")
-    else:
-        df = pd.read_excel(uploaded_file, engine="openpyxl")
-    
-    st.write("Raw Data:")
-    st.dataframe(df.head())
-    
-    cleaned_df = clean_data(df)
-    st.write("Cleaned Data:")
-    st.dataframe(cleaned_df.head())
-    
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        cleaned_df.to_excel(writer, index=False, sheet_name='Cleaned Data')
-    output.seek(0)
-    
-    st.download_button(label="Download Cleaned Data",
-                       data=output,
-                       file_name="cleaned_data.xlsx",
-                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    try:
+        if uploaded_file.name.endswith(".xls"):
+            df = pd.read_excel(uploaded_file, engine="xlrd")
+        else:
+            df = pd.read_excel(uploaded_file, engine="openpyxl")
+        
+        st.write("Raw Data:")
+        st.dataframe(df.head())
+        
+        cleaned_df = clean_data(df)
+        st.write("Cleaned Data:")
+        st.dataframe(cleaned_df.head())
+        
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            cleaned_df.to_excel(writer, index=False, sheet_name='Cleaned Data')
+        output.seek(0)
+        
+        st.download_button(label="Download Cleaned Data",
+                           data=output,
+                           file_name="cleaned_data.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
