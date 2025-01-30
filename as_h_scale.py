@@ -50,6 +50,9 @@ def extract_keywords_tfidf(df, ngram_range=(1,2), top_n=20):
 
 def compute_text_similarity(df, threshold=0.5, top_n=5):
     text_series = df.select_dtypes(include=['object']).apply(lambda x: ' '.join(x), axis=1)
+    if len(text_series) < 2:
+        return "Not enough text entries for similarity comparison."
+    
     vectorizer = TfidfVectorizer(stop_words='english')
     tfidf_matrix = vectorizer.fit_transform(text_series)
     similarity_matrix = cosine_similarity(tfidf_matrix)
@@ -59,6 +62,9 @@ def compute_text_similarity(df, threshold=0.5, top_n=5):
         for j in range(i + 1, len(text_series)):
             if similarity_matrix[i, j] > threshold:
                 similar_pairs.append((i, j, similarity_matrix[i, j]))
+    
+    if not similar_pairs:
+        return "No similar text pairs found. Try adjusting the threshold."
     
     similar_pairs = sorted(similar_pairs, key=lambda x: x[2], reverse=True)[:top_n]
     
@@ -111,24 +117,6 @@ if uploaded_file is not None:
         similarity_results = compute_text_similarity(df_cleaned)
         st.write("### Top Similar Texts (Cosine Similarity)")
         st.write(similarity_results)
-        
-        st.markdown("""
-        <div title='TF-IDF (Term Frequency-Inverse Document Frequency) ranks words based on their importance. 
-        It gives higher scores to words that appear frequently in a document but not in many other documents. 
-        This helps identify key topics while filtering out common words like "the" or "and".'>
-        ℹ️ **What is TF-IDF?** (Hover to learn more)
-        </div>
-        <div title='Named Entity Recognition (NER) is a method to identify specific terms in text, such as names of legal concepts, organizations, or locations. 
-        In this case, it focuses on extracting legal terms like "contract", "negotiation", "settlement", etc.'>
-        ℹ️ **What is NER?** (Hover to learn more)
-        </div>
-        <div title='Cosine Similarity is a way to measure how similar two pieces of text are. 
-        It works by converting text into numerical vectors and calculating the angle between them. 
-        A similarity score closer to 1 means the texts are very similar, while a score closer to 0 means they are different. 
-        This section displays the **top similar text pairs** based on a similarity threshold.'>
-        ℹ️ **What is Cosine Similarity?** (Hover to learn more)
-        </div>
-        """, unsafe_allow_html=True)
         
         logging.info("File processed and ready for download.")
     except Exception as e:
