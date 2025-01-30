@@ -118,6 +118,24 @@ if uploaded_file is not None:
         st.write("### Top Similar Texts (Cosine Similarity)")
         st.write(similarity_results)
         
+        st.markdown("""
+        <div title='TF-IDF (Term Frequency-Inverse Document Frequency) ranks words based on their importance. 
+        It gives higher scores to words that appear frequently in a document but not in many other documents. 
+        This helps identify key topics while filtering out common words like "the" or "and".'>
+        ℹ️ **What is TF-IDF?** (Hover to learn more)
+        </div>
+        <div title='Named Entity Recognition (NER) is a method to identify specific terms in text, such as names of legal concepts, organizations, or locations. 
+        In this case, it focuses on extracting legal terms like "contract", "negotiation", "settlement", etc.'>
+        ℹ️ **What is NER?** (Hover to learn more)
+        </div>
+        <div title='Cosine Similarity is a way to measure how similar two pieces of text are. 
+        It works by converting text into numerical vectors and calculating the angle between them. 
+        A similarity score closer to 1 means the texts are very similar, while a score closer to 0 means they are different. 
+        This section displays the **top similar text pairs** based on a similarity threshold.'>
+        ℹ️ **What is Cosine Similarity?** (Hover to learn more)
+        </div>
+        """, unsafe_allow_html=True)
+        
         logging.info("File processed and ready for download.")
     except Exception as e:
         st.error(f"Error loading file: {e}")
