@@ -7,13 +7,10 @@ import xlsxwriter
 import logging
 import tempfile
 
-def clean_data(df, columns_to_clean):
+def clean_data(df):
     # Standardize column names
     df_cleaned = df.copy()
     df_cleaned.columns = [col.strip().lower().replace(" ", "_").replace("\n", "_") for col in df_cleaned.columns]
-    
-    # Select only columns chosen for cleaning
-    df_cleaned = df_cleaned[columns_to_clean]
     
     # Convert all text to lowercase and remove leading/trailing spaces
     df_cleaned = df_cleaned.astype(str).apply(lambda x: x.str.lower().str.strip())
@@ -44,17 +41,12 @@ uploaded_file = st.sidebar.file_uploader("Upload your Excel file", type=["xlsx"]
 
 if uploaded_file is not None:
     try:
-        xls = pd.ExcelFile(uploaded_file)
-        sheet_name = st.sidebar.selectbox("Select Sheet", xls.sheet_names)
-        df = pd.read_excel(xls, sheet_name=sheet_name, engine='openpyxl')
+        df = pd.read_excel(uploaded_file, engine='openpyxl')
         
         st.write("### Raw Data:")
         st.dataframe(df.head())
         
-        # Allow user to select columns for cleaning
-        columns_to_clean = st.sidebar.multiselect("Select Columns to Clean", df.columns, default=df.columns)
-        
-        df_cleaned = clean_data(df, columns_to_clean)
+        df_cleaned = clean_data(df)
         
         st.write("### Cleaned Data:")
         st.dataframe(df_cleaned.head())
@@ -76,6 +68,10 @@ if uploaded_file is not None:
             )
         
         logging.info("File processed and ready for download.")
+    except Exception as e:
+        st.error(f"Error loading file: {e}")
+        logging.error(f"Error encountered: {e}")
+)
     except Exception as e:
         st.error(f"Error loading file: {e}")
         logging.error(f"Error encountered: {e}")
