@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import MultiLabelBinarizer
 
 # Load Hugging Face NER model
-ner_pipeline = pipeline("ner", model="Jean-Baptiste/roberta-large-ner-english", tokenizer="Jean-Baptiste/roberta-large-ner-english")
+ner_pipeline = pipeline("ner", model="dslim/bert-base-NER", tokenizer="dslim/bert-base-NER")
 summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
 
 # Streamlit App Header
