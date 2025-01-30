@@ -35,7 +35,15 @@ def clean_data(df):
     
     return df_cleaned
 
+def preprocess_text(text):
+    """Remove numbers, case references, and extra spaces."""
+    text = re.sub(r'\b\d+\b', '', text)  # Remove numeric values
+    text = re.sub(r'\s+', ' ', text).strip()  # Remove extra spaces
+    return text
+
 def extract_keywords_tfidf(text_series, ngram_range=(1,2), top_n=20):
+    text_series = text_series.apply(preprocess_text)  # Preprocess text
+    
     vectorizer = TfidfVectorizer(ngram_range=ngram_range, stop_words='english')
     tfidf_matrix = vectorizer.fit_transform(text_series)
     feature_names = vectorizer.get_feature_names_out()
@@ -56,13 +64,7 @@ uploaded_file = st.sidebar.file_uploader("Upload your Excel file", type=["xlsx"]
 
 if uploaded_file is not None:
     try:
-        df = pd.read_excel(uploaded_file, engine='openpyxl')
-        
-        st.write("### Raw Data:")
-        st.dataframe(df.head())
-        
-        df_cleaned = clean_data(df)
-        
+        d
         st.write("### Cleaned Data:")
         st.dataframe(df_cleaned.head())
         
@@ -90,3 +92,9 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"Error loading file: {e}")
         logging.error(f"Error encountered: {e}")
+f = pd.read_excel(uploaded_file, engine='openpyxl')
+        
+        st.write("### Raw Data:")
+        st.dataframe(df.head())
+        
+        df_cleaned = clean_data(df)
