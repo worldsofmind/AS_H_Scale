@@ -57,6 +57,22 @@ def extract_keywords_tfidf(df, ngram_range=(1,2), top_n=20):
     top_keywords = dict(Counter(keyword_scores).most_common(top_n))
     return top_keywords
 
+def extract_named_entities(text_series):
+    """Simple regex-based NER for identifying legal entities, monetary values, and dates."""
+    entity_patterns = {
+        'MONEY': r'\$?\b\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\b',
+        'DATE': r'\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4})\b',
+        'LEGAL_TERMS': r'\b(contract|agreement|negotiation|settlement|lawsuit|bill)\b'
+    }
+    
+    entities = {key: [] for key in entity_patterns}
+    for text in text_series:
+        for entity, pattern in entity_patterns.items():
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            entities[entity].extend(matches)
+    
+    return {key: list(set(value)) for key, value in entities.items()}  # Remove duplicates
+
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
 st.sidebar.title("Settings")
@@ -91,14 +107,10 @@ if uploaded_file is not None:
         st.write("### Top Keywords (TF-IDF)")
         st.write(top_keywords)
         
-        # Add mouse-over tooltip for TF-IDF explanation
-        st.markdown("""
-        <div title='TF-IDF (Term Frequency-Inverse Document Frequency) ranks words based on their importance. 
-        It gives higher scores to words that appear frequently in a document but not in many other documents. 
-        This helps identify key topics while filtering out common words like "the" or "and".'>
-        ℹ️ **What is TF-IDF?** (Hover to learn more)
-        </div>
-        """, unsafe_allow_html=True)
+        # Named Entity Recognition (NER) Extraction
+        named_entities = extract_named_entities(df_cleaned.select_dtypes(include=['object']).apply(lambda x: ' '.join(x), axis=1))
+        st.write("### Named Entity Recognition (NER)")
+        st.write(named_entities)
         
         logging.info("File processed and ready for download.")
     except Exception as e:
