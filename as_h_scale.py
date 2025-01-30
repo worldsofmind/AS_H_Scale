@@ -58,10 +58,8 @@ def extract_keywords_tfidf(df, ngram_range=(1,2), top_n=20):
     return top_keywords
 
 def extract_named_entities(text_series):
-    """Improved regex-based NER for legal entities, monetary values, and dates."""
+    """Improved regex-based NER for legal entities."""
     entity_patterns = {
-        'MONEY': r'\b(?:\$|SGD|USD)?\s?\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\s?(?:dollars|SGD|USD)?\b',
-        'DATE': r'\b(?:\d{1,2}/\d{1,2}/\d{2,4}|\d{4}-\d{2}-\d{2})\b',
         'LEGAL_TERMS': r'\b(contract|agreement|negotiation|settlement|lawsuit|bill|litigation|damages|contractual|breach)\b'
     }
     
@@ -111,6 +109,14 @@ if uploaded_file is not None:
         named_entities = extract_named_entities(df_cleaned.select_dtypes(include=['object']).apply(lambda x: ' '.join(x), axis=1))
         st.write("### Named Entity Recognition (NER)")
         st.write(named_entities)
+        
+        # Add mouse-over tooltip for NER explanation
+        st.markdown("""
+        <div title='Named Entity Recognition (NER) is a method to identify specific terms in text, such as names of legal concepts, organizations, or locations. 
+        In this case, it focuses on extracting legal terms like "contract", "negotiation", "settlement", etc.'>
+        ℹ️ **What is NER?** (Hover to learn more)
+        </div>
+        """, unsafe_allow_html=True)
         
         logging.info("File processed and ready for download.")
     except Exception as e:
