@@ -12,6 +12,13 @@ st.header("Step 1: Upload and Clean Dataset")
 uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])
 if uploaded_file:
     try:
+        # Ensure openpyxl is installed
+        try:
+            import openpyxl
+        except ImportError:
+            st.error("Missing optional dependency 'openpyxl'. Please install it using pip install openpyxl.")
+            st.stop()
+        
         df = pd.read_excel(uploaded_file, engine="openpyxl")
 
         # Step 2: Rename columns for easier handling
