@@ -99,8 +99,12 @@ if uploaded_file:
         df = pd.concat([df, reasons_df], axis=1)
 
         # Correlation Calculation
-        correlation_matrix = df.corr()
-        negotiation_correlation = correlation_matrix['Negotiation_Rounds'].drop(['Negotiation_Rounds'])
+        numeric_df = df.select_dtypes(include=[np.number])  # Select only numeric columns
+        correlation_matrix = numeric_df.corr()
+        
+        negotiation_correlation = correlation_matrix.get('Negotiation_Rounds', None)
+        if negotiation_correlation is not None:
+            negotiation_correlation = negotiation_correlation.drop(['Negotiation_Rounds'])
 
         # Display Extracted Reasons
         st.subheader("Identified Reasons for Deviation")
@@ -108,7 +112,10 @@ if uploaded_file:
 
         # Display Correlation Analysis
         st.subheader("Correlation Between Reasons and Negotiation Frequency")
-        st.dataframe(negotiation_correlation.sort_values(ascending=False))
+        if negotiation_correlation is not None:
+            st.dataframe(negotiation_correlation.sort_values(ascending=False))
+        else:
+            st.warning("No numeric correlation data available.")
 
         # Plot Correlation Heatmap
         st.subheader("Correlation Heatmap")
