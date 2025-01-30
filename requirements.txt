@@ -1,10 +1,5 @@
 streamlit
 pandas
 openpyxl
-xlrd
 xlsxwriter
-nltk
-unidecode
-contractions
-presidio-analyzer
-presidio-anonymizer
+re
