@@ -6,27 +6,27 @@ import openpyxl
 import xlsxwriter
 
 def clean_data(df):
-    # Make a copy to avoid modifying original data
+    # Ensure all column names are standardized
     df_cleaned = df.copy()
-
-    # Standardize column names (convert to lowercase, replace spaces with underscores)
     df_cleaned.columns = [col.strip().lower().replace(" ", "_").replace("\n", "_") for col in df_cleaned.columns]
 
-    # Remove leading/trailing spaces from text columns
-    for col in df_cleaned.select_dtypes(include=['object']).columns:
-        df_cleaned[col] = df_cleaned[col].str.strip()
+    # Convert all text to lowercase for consistency
+    df_cleaned = df_cleaned.astype(str).apply(lambda x: x.str.lower().str.strip())
 
-    # Convert all text to lowercase for uniformity
-    df_cleaned = df_cleaned.applymap(lambda x: x.lower() if isinstance(x, str) else x)
-
-    # Handle missing values: Fill NaNs with an empty string for text analytics
+    # Handle missing values by replacing NaNs with an empty string
     df_cleaned.fillna("", inplace=True)
 
-    # Remove duplicates based on 'case_reference' and 'assigned_solicitor'
-    if 'case_reference' in df_cleaned.columns and 'assigned_solicitor' in df_cleaned.columns:
-        df_cleaned.drop_duplicates(subset=['case_reference', 'assigned_solicitor'], inplace=True)
+    # Check if required columns exist before processing
+    required_columns = ['case_reference', 'assigned_solicitor']
+    for col in required_columns:
+        if col not in df_cleaned.columns:
+            st.warning(f"Warning: Column '{col}' is missing from the dataset!")
 
-    # Ensure numerical columns are properly formatted
+    # Remove duplicates if required columns exist
+    if all(col in df_cleaned.columns for col in required_columns):
+        df_cleaned.drop_duplicates(subset=required_columns, inplace=True)
+
+    # Convert numeric columns to proper format if they exist
     numerical_columns = [
         'initial_fees_billed_by_as_(100%_for_sections_1-3)',
         'final_fees_agreed_upon_(100%_for_sections_1-3)'
@@ -48,25 +48,28 @@ st.title("Data Cleaning for Text Analytics")
 uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
 
 if uploaded_file is not None:
-    df = pd.read_excel(uploaded_file, sheet_name=0, engine='openpyxl')  # Load first sheet
-    st.write("### Raw Data:")
-    st.dataframe(df.head())
+    try:
+        df = pd.read_excel(uploaded_file, sheet_name=0, engine='openpyxl')  # Load first sheet
+        st.write("### Raw Data:")
+        st.dataframe(df.head())
+
+        # Clean data
+        df_cleaned = clean_data(df)
+        st.write("### Cleaned Data:")
+        st.dataframe(df_cleaned.head())
+
+        # Option to download cleaned data as Excel
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df_cleaned.to_excel(writer, index=False, sheet_name='Cleaned Data')
+        output.seek(0)
+
+        st.download_button(
+            label="Download Cleaned Data",
+            data=output,
+            file_name="cleaned_data.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
     
-    df_cleaned = clean_data(df)
-    
-    st.write("### Cleaned Data:")
-    st.dataframe(df_cleaned.head())
-    
-    # Option to download cleaned data as Excel
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df_cleaned.to_excel(writer, index=False, sheet_name='Cleaned Data')
-        writer.close()
-    output.seek(0)
-    
-    st.download_button(
-        label="Download Cleaned Data",
-        data=output,
-        file_name="cleaned_data.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    except Exception as e:
+        st.error(f"Error loading file: {e}")
