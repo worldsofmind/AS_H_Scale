@@ -1,98 +1,72 @@
 import streamlit as st
 import pandas as pd
-import io
 import re
-import unidecode
-import contractions
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-from nltk.stem import WordNetLemmatizer
-import nltk
-import os
-from presidio_analyzer import AnalyzerEngine
-from presidio_anonymizer import AnonymizerEngine
-
-# Set NLTK data path to avoid permission errors
-nltk_data_path = os.path.expanduser("~/nltk_data")
-nltk.data.path.append(nltk_data_path)
-
-# Download NLTK resources only if not already available
-for resource in ["stopwords", "punkt", "wordnet"]:
-    try:
-        nltk.data.find(f"corpora/{resource}")
-    except LookupError:
-        nltk.download(resource, download_dir=nltk_data_path)
-
-stop_words = set(stopwords.words('english'))
-lemmatizer = WordNetLemmatizer()
-
-# Initialize Presidio for Named Entity Recognition masking
-analyzer = AnalyzerEngine()
-anonymizer = AnonymizerEngine()
-
-def mask_entities_presidio(text):
-    results = analyzer.analyze(text=text, entities=["PERSON", "LOCATION", "EMAIL_ADDRESS"], language='en')
-    anonymized_text = anonymizer.anonymize(text, results)
-    return anonymized_text.text
+import io
+import openpyxl
+import xlsxwriter
 
 def clean_data(df):
-    """Function to clean and preprocess the data."""
-    if df is None or df.empty:
-        return df
-    
-    # Drop duplicates
-    df = df.drop_duplicates()
-    
-    # Drop rows with all missing values
-    df = df.dropna(how='all')
-    
-    # Fill missing values with empty strings
-    df = df.fillna('')
-    
-    # Normalize text columns (lowercasing, stripping spaces, removing accents, removing special characters, expanding contractions)
-    for col in df.select_dtypes(include=['object']).columns:
-        df[col] = df[col].astype(str)
-        df[col] = df[col].str.strip().str.lower()
-        df[col] = df[col].apply(lambda x: unidecode.unidecode(x))  # Remove accents
-        df[col] = df[col].apply(lambda x: contractions.fix(x))  # Expand contractions
-        df[col] = df[col].apply(lambda x: re.sub(r'[^\w\s]', '', x))  # Remove special characters
-        df[col] = df[col].apply(lambda x: re.sub(r'\d+', '', x))  # Remove numbers
-        df[col] = df[col].apply(lambda x: ' '.join([word for word in x.split() if word not in stop_words]))  # Remove stopwords
-        df[col] = df[col].apply(lambda x: ' '.join([lemmatizer.lemmatize(word) for word in x.split()]))  # Lemmatization
-        df[col] = df[col].apply(lambda x: re.sub(r'\s+', ' ', x).strip())  # Remove extra spaces
-        df[col] = df[col].apply(mask_entities_presidio)  # Apply Presidio for NER masking
-    
-    # Remove leading and trailing whitespace from all column names
-    df.columns = df.columns.str.strip()
-    
-    return df
+    # Make a copy to avoid modifying original data
+    df_cleaned = df.copy()
 
-st.title("Data Cleaning & Processing App")
+    # Standardize column names (convert to lowercase, replace spaces with underscores)
+    df_cleaned.columns = [col.strip().lower().replace(" ", "_").replace("\n", "_") for col in df_cleaned.columns]
 
-uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx", "xls"])
+    # Remove leading/trailing spaces from text columns
+    for col in df_cleaned.select_dtypes(include=['object']).columns:
+        df_cleaned[col] = df_cleaned[col].str.strip()
+
+    # Convert all text to lowercase for uniformity
+    df_cleaned = df_cleaned.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+
+    # Handle missing values: Fill NaNs with an empty string for text analytics
+    df_cleaned.fillna("", inplace=True)
+
+    # Remove duplicates based on 'case_reference' and 'assigned_solicitor'
+    if 'case_reference' in df_cleaned.columns and 'assigned_solicitor' in df_cleaned.columns:
+        df_cleaned.drop_duplicates(subset=['case_reference', 'assigned_solicitor'], inplace=True)
+
+    # Ensure numerical columns are properly formatted
+    numerical_columns = [
+        'initial_fees_billed_by_as_(100%_for_sections_1-3)',
+        'final_fees_agreed_upon_(100%_for_sections_1-3)'
+    ]
+    for col in numerical_columns:
+        if col in df_cleaned.columns:
+            df_cleaned[col] = pd.to_numeric(df_cleaned[col], errors='coerce')
+
+    # Remove special characters and extra spaces from text fields
+    text_columns = df_cleaned.select_dtypes(include=['object']).columns
+    for col in text_columns:
+        df_cleaned[col] = df_cleaned[col].apply(lambda x: re.sub(r'\s+', ' ', re.sub(r'[^\w\s]', '', x)).strip())
+
+    return df_cleaned
+
+# Streamlit UI
+st.title("Data Cleaning for Text Analytics")
+
+uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
 
 if uploaded_file is not None:
-    try:
-        if uploaded_file.name.endswith(".xls"):
-            df = pd.read_excel(uploaded_file, engine="xlrd")
-        else:
-            df = pd.read_excel(uploaded_file, engine="openpyxl")
-        
-        st.write("Raw Data:")
-        st.dataframe(df.head())
-        
-        cleaned_df = clean_data(df)
-        st.write("Cleaned Data:")
-        st.dataframe(cleaned_df.head())
-        
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            cleaned_df.to_excel(writer, index=False, sheet_name='Cleaned Data')
-        output.seek(0)
-        
-        st.download_button(label="Download Cleaned Data",
-                           data=output,
-                           file_name="cleaned_data.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
+    df = pd.read_excel(uploaded_file, sheet_name=0, engine='openpyxl')  # Load first sheet
+    st.write("### Raw Data:")
+    st.dataframe(df.head())
+    
+    df_cleaned = clean_data(df)
+    
+    st.write("### Cleaned Data:")
+    st.dataframe(df_cleaned.head())
+    
+    # Option to download cleaned data as Excel
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df_cleaned.to_excel(writer, index=False, sheet_name='Cleaned Data')
+        writer.close()
+    output.seek(0)
+    
+    st.download_button(
+        label="Download Cleaned Data",
+        data=output,
+        file_name="cleaned_data.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
