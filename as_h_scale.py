@@ -58,11 +58,11 @@ def extract_keywords_tfidf(df, ngram_range=(1,2), top_n=20):
     return top_keywords
 
 def extract_named_entities(text_series):
-    """Simple regex-based NER for identifying legal entities, monetary values, and dates."""
+    """Improved regex-based NER for legal entities, monetary values, and dates."""
     entity_patterns = {
-        'MONEY': r'\$?\b\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\b',
-        'DATE': r'\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4})\b',
-        'LEGAL_TERMS': r'\b(contract|agreement|negotiation|settlement|lawsuit|bill)\b'
+        'MONEY': r'\b(?:\$|SGD|USD)?\s?\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\s?(?:dollars|SGD|USD)?\b',
+        'DATE': r'\b(?:\d{1,2}/\d{1,2}/\d{2,4}|\d{4}-\d{2}-\d{2})\b',
+        'LEGAL_TERMS': r'\b(contract|agreement|negotiation|settlement|lawsuit|bill|litigation|damages|contractual|breach)\b'
     }
     
     entities = {key: [] for key in entity_patterns}
@@ -116,3 +116,4 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"Error loading file: {e}")
         logging.error(f"Error encountered: {e}")
+{e}")
