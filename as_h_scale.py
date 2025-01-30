@@ -12,8 +12,9 @@ def clean_data(df):
     df_cleaned = df.copy()
     df_cleaned.columns = [col.strip().lower().replace(" ", "_").replace("\n", "_") for col in df_cleaned.columns]
     
-    # Convert all text to lowercase and remove leading/trailing spaces
-    df_cleaned = df_cleaned.astype(str).apply(lambda x: x.str.lower().str.strip())
+    # Convert all text columns to lowercase and remove leading/trailing spaces
+    text_columns = df_cleaned.select_dtypes(include=['object']).columns
+    df_cleaned[text_columns] = df_cleaned[text_columns].apply(lambda x: x.str.lower().str.strip())
     
     # Handle missing values
     df_cleaned.fillna("", inplace=True)
@@ -28,8 +29,7 @@ def clean_data(df):
     df_cleaned[numerical_columns] = df_cleaned[numerical_columns].apply(pd.to_numeric, errors='coerce')
     
     # Use vectorized Pandas operations for text cleaning
-    text_columns = df_cleaned.select_dtypes(include=['object']).columns
-    df_cleaned[text_columns] = df_cleaned[text_columns].replace(r'[^\w\s]', '', regex=True).replace(r'\s+', ' ', regex=True).str.strip()
+    df_cleaned[text_columns] = df_cleaned[text_columns].replace(r'[^\w\s]', '', regex=True).replace(r'\s+', ' ', regex=True)
     
     return df_cleaned
 
