@@ -36,36 +36,19 @@ def clean_data(df):
     
     return df_cleaned
 
-def preprocess_text(text):
-    """Remove numbers, case references, and extra spaces."""
-    text = re.sub(r'\b\d+\b', '', text)  # Remove numeric values
-    text = re.sub(r'\s+', ' ', text).strip()  # Remove extra spaces
-    return text
-
-def extract_keywords_tfidf(df, ngram_range=(1,2), top_n=20):
-    text_series = df.select_dtypes(include=['object']).apply(lambda x: ' '.join(x), axis=1)  # Combine all text columns
-    text_series = text_series.apply(preprocess_text)  # Preprocess text
+def extract_named_entities(text_series):
+    """Simple regex-based NER for identifying legal entities."""
+    entity_patterns = {
+        'LEGAL_TERMS': r'\b(contract|agreement|negotiation|settlement|lawsuit|bill|litigation|damages|contractual|breach)\b'
+    }
     
-    vectorizer = TfidfVectorizer(ngram_range=ngram_range, stop_words='english')
-    tfidf_matrix = vectorizer.fit_transform(text_series)
-    feature_names = vectorizer.get_feature_names_out()
+    entities = {key: [] for key in entity_patterns}
+    for text in text_series:
+        for entity, pattern in entity_patterns.items():
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            entities[entity].extend(matches)
     
-    # Sum up the TF-IDF scores for each word
-    scores = tfidf_matrix.sum(axis=0).A1
-    keyword_scores = dict(zip(feature_names, scores))
-    
-    # Get the top N keywords
-    top_keywords = dict(Counter(keyword_scores).most_common(top_n))
-    return top_keywords
-
-def compute_text_similarity(df):
-    """Computes cosine similarity between text columns in the dataframe."""
-    text_series = df.select_dtypes(include=['object']).apply(lambda x: ' '.join(x), axis=1)  # Combine text columns
-    vectorizer = TfidfVectorizer(stop_words='english')
-    tfidf_matrix = vectorizer.fit_transform(text_series)
-    similarity_matrix = cosine_similarity(tfidf_matrix)
-    
-    return similarity_matrix
+    return {key: list(set(value)) for key, value in entities.items()}  # Remove duplicates
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -83,28 +66,10 @@ if uploaded_file is not None:
         st.write("### Cleaned Data:")
         st.dataframe(df_cleaned.head())
         
-        # Optimize file download handling
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as temp_file:
-            with pd.ExcelWriter(temp_file.name, engine='xlsxwriter') as writer:
-                df_cleaned.to_excel(writer, index=False, sheet_name="Cleaned Data")
-            
-            with open(temp_file.name, "rb") as f:
-                st.download_button(
-                    label="Download Cleaned Data",
-                    data=f,
-                    file_name="cleaned_data.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-        
-        # Extract TF-IDF Keywords from entire document
-        top_keywords = extract_keywords_tfidf(df_cleaned)
-        st.write("### Top Keywords (TF-IDF)")
-        st.write(top_keywords)
-        
-        # Compute Text Similarity (Cosine Similarity)
-        similarity_matrix = compute_text_similarity(df_cleaned)
-        st.write("### Text Similarity (Cosine Similarity)")
-        st.write(similarity_matrix)
+        # Extract Named Entity Recognition (NER)
+        named_entities = extract_named_entities(df_cleaned.select_dtypes(include=['object']).apply(lambda x: ' '.join(x), axis=1))
+        st.write("### Named Entity Recognition (NER)")
+        st.write(named_entities)
         
         # Add tooltips for explanations
         st.markdown("""
