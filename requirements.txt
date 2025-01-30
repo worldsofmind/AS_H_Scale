@@ -1,10 +1,4 @@
 pandas
+openpyxl
 streamlit
-sentence-transformers
-scikit-learn
-transformers
-gensim
-nltk
-numpy
-seaborn
-matplotlib
+xlsxwriter
