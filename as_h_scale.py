@@ -12,9 +12,13 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MultiLabelBinarizer
 
-# Load Hugging Face NER model
-ner_pipeline = pipeline("ner", model="dslim/bert-base-NER", tokenizer="dslim/bert-base-NER")
-summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+# Load Hugging Face NER model with optimized settings
+try:
+    ner_pipeline = pipeline("ner", model="dslim/bert-base-NER", tokenizer="dslim/bert-base-NER", aggregation_strategy="simple")
+    summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+except Exception as e:
+    st.error(f"Error loading transformer models: {e}")
+    ner_pipeline, summarizer = None, None
 
 # Streamlit App Header
 st.title("Honoria Scale Negotiation Analysis App")
@@ -37,9 +41,7 @@ if uploaded_file:
         df['Negotiation_Rounds'] = pd.to_numeric(df['Negotiation_Rounds'], errors='coerce')
 
         # Step 4: Handle missing values
-        df['Billing_Communication'].fillna("No Communication", inplace=True)
-        df['Billing_Communication_Part2'].fillna("No Communication", inplace=True)
-        df['Negotiation_Rounds'].fillna(0, inplace=True)
+        df.fillna("No Communication", inplace=True)
 
         # Display cleaned dataset
         st.subheader("Cleaned Dataset Preview")
@@ -64,9 +66,9 @@ if uploaded_file:
             if not isinstance(text, str) or not text.strip():
                 return []
             try:
-                if "Hugging Face NER" in text_analysis_method:
+                if "Hugging Face NER" in text_analysis_method and ner_pipeline:
                     entities = ner_pipeline(text)
-                    reasons = list(set([ent['word'] for ent in entities if ent['entity'].startswith('B-')]))
+                    reasons = list(set([ent['word'] for ent in entities]))
                 elif "TF-IDF" in text_analysis_method:
                     vectorizer = TfidfVectorizer(stop_words='english')
                     tfidf_matrix = vectorizer.fit_transform([text])
@@ -81,7 +83,7 @@ if uploaded_file:
                     lda_model = models.LdaModel(corpus, num_topics=2, id2word=dictionary, passes=10)
                     topics = lda_model.show_topics(num_words=5, formatted=False)
                     reasons = list(set([word for topic in topics for word, _ in topic[1]]))
-                elif "BART Summarization" in text_analysis_method:
+                elif "BART Summarization" in text_analysis_method and summarizer:
                     reasons = [summarizer(text, max_length=50, min_length=25, do_sample=False)[0]['summary_text']]
                 else:
                     reasons = []
@@ -105,6 +107,7 @@ if uploaded_file:
         negotiation_correlation = correlation_matrix.get('Negotiation_Rounds', None)
         if negotiation_correlation is not None:
             negotiation_correlation = negotiation_correlation.drop(['Negotiation_Rounds'])
+            negotiation_correlation = negotiation_correlation[negotiation_correlation.abs() > 0.1]  # Filter correlations
 
         # Display Extracted Reasons
         st.subheader("Identified Reasons for Deviation")
@@ -112,10 +115,10 @@ if uploaded_file:
 
         # Display Correlation Analysis
         st.subheader("Correlation Between Reasons and Negotiation Frequency")
-        if negotiation_correlation is not None:
+        if negotiation_correlation is not None and not negotiation_correlation.empty:
             st.dataframe(negotiation_correlation.sort_values(ascending=False))
         else:
-            st.warning("No numeric correlation data available.")
+            st.warning("No significant correlation data available.")
 
         # Plot Correlation Heatmap
         st.subheader("Correlation Heatmap")
