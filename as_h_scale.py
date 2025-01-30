@@ -13,7 +13,8 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import MultiLabelBinarizer
 
 # Load Hugging Face NER model
-ner_pipeline = pipeline("ner", model="dbmdz/bert-large-cased-finetuned-conll03-english", tokenizer="dbmdz/bert-large-cased-finetuned-conll03-english")
+ner_pipeline = pipeline("ner", model="Jean-Baptiste/roberta-large-ner-english", tokenizer="Jean-Baptiste/roberta-large-ner-english")
+summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
 
 # Streamlit App Header
 st.title("Honoria Scale Negotiation Analysis App")
@@ -55,8 +56,8 @@ if uploaded_file:
         text_analysis_method = st.selectbox("Choose a Text Analysis Method", [
             "Hugging Face NER - Uses a transformer model to extract named entities.",
             "TF-IDF - Identifies important words based on their frequency in the text.",
-            "BERT - Uses deep learning to summarize the text and extract key points.",
-            "LDA - Identifies topics from the text using Latent Dirichlet Allocation."
+            "LDA - Identifies topics from the text using Latent Dirichlet Allocation.",
+            "BART Summarization - Uses BART to summarize key points."
         ])
 
         def extract_reasons(text):
@@ -73,9 +74,6 @@ if uploaded_file:
                     scores = tfidf_matrix.toarray().flatten()
                     top_n_words = [feature_names[i] for i in scores.argsort()[-5:]]
                     reasons = top_n_words
-                elif "BERT" in text_analysis_method:
-                    summarizer = pipeline("summarization")
-                    reasons = [summarizer(text, max_length=50, min_length=25, do_sample=False)[0]['summary_text']]
                 elif "LDA" in text_analysis_method:
                     tokens = word_tokenize(text.lower())
                     dictionary = corpora.Dictionary([tokens])
@@ -83,6 +81,8 @@ if uploaded_file:
                     lda_model = models.LdaModel(corpus, num_topics=2, id2word=dictionary, passes=10)
                     topics = lda_model.show_topics(num_words=5, formatted=False)
                     reasons = list(set([word for topic in topics for word, _ in topic[1]]))
+                elif "BART Summarization" in text_analysis_method:
+                    reasons = [summarizer(text, max_length=50, min_length=25, do_sample=False)[0]['summary_text']]
                 else:
                     reasons = []
             except Exception as e:
