@@ -4,25 +4,28 @@ import io
 import re
 import unidecode
 import contractions
-import spacy
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
 import nltk
+from presidio_analyzer import AnalyzerEngine
+from presidio_anonymizer import AnonymizerEngine
+
 nltk.download('stopwords')
 nltk.download('punkt')
 nltk.download('wordnet')
 
-# Ensure spaCy model is downloaded
-try:
-    nlp = spacy.load("en_core_web_sm")
-except OSError:
-    from spacy.cli import download
-    download("en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm")
-
 stop_words = set(stopwords.words('english'))
 lemmatizer = WordNetLemmatizer()
+
+# Initialize Presidio for Named Entity Recognition masking
+analyzer = AnalyzerEngine()
+anonymizer = AnonymizerEngine()
+
+def mask_entities_presidio(text):
+    results = analyzer.analyze(text=text, entities=["PERSON", "LOCATION", "EMAIL_ADDRESS"], language='en')
+    anonymized_text = anonymizer.anonymize(text, results)
+    return anonymized_text.text
 
 def clean_data(df):
     """Function to clean and preprocess the data."""
@@ -45,12 +48,7 @@ def clean_data(df):
         df[col] = df[col].apply(lambda x: ' '.join([word for word in x.split() if word not in stop_words]))  # Remove stopwords
         df[col] = df[col].apply(lambda x: ' '.join([lemmatizer.lemmatize(word) for word in x.split()]))  # Lemmatization
         df[col] = df[col].apply(lambda x: re.sub(r'\s+', ' ', x).strip())  # Remove extra spaces
-        
-        # Named Entity Recognition (NER) Masking
-        def mask_entities(text):
-            doc = nlp(text)
-            return ' '.join(["[ENTITY]" if token.ent_type_ else token.text for token in doc])
-        df[col] = df[col].apply(mask_entities)
+        df[col] = df[col].apply(mask_entities_presidio)  # Apply Presidio for NER masking
     
     # Remove leading and trailing whitespace from all column names
     df.columns = df.columns.str.strip()
