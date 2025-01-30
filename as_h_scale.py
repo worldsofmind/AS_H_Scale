@@ -116,4 +116,3 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"Error loading file: {e}")
         logging.error(f"Error encountered: {e}")
-{e}")
