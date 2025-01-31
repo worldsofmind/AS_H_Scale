@@ -2,6 +2,10 @@ import streamlit as st
 import pandas as pd
 from collections import Counter
 import string
+from sentence_transformers import SentenceTransformer, util
+
+# Load semantic similarity model
+model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
 
 # Function to clean the data
 def clean_data(df, column_name):
@@ -15,7 +19,8 @@ def analyze_text(text):
     analysis = {
         "Key Themes": [],
         "Frequent Words": [],
-        "Contextual Insights": []
+        "Contextual Insights": [],
+        "Semantic Similarity Analysis": []
     }
     
     # Tokenization and preprocessing
@@ -54,10 +59,26 @@ def analyze_text(text):
     
     analysis["Contextual Insights"] = contextual_insights if contextual_insights else ["No significant contextual insights."]
     
+    # Perform semantic similarity analysis
+    reference_statements = [
+        "The case required urgent handling.",
+        "The complexity of the case increased the workload.",
+        "The legal proceedings involved multiple hearings.",
+        "There was a dispute over the legal fees.",
+        "The client provided late instructions.",
+    ]
+    text_embedding = model.encode(text, convert_to_tensor=True)
+    reference_embeddings = model.encode(reference_statements, convert_to_tensor=True)
+    similarities = util.pytorch_cos_sim(text_embedding, reference_embeddings)[0]
+    
+    for i, score in enumerate(similarities):
+        if score.item() > 0.5:
+            analysis["Semantic Similarity Analysis"].append(f"Similar to: '{reference_statements[i]}' with score {score.item():.2f}")
+    
     return analysis
 
 # Streamlit UI
-st.title("Legal Case Analysis Tool")
+st.title("Legal Case Analysis Tool with Semantic Analysis")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
