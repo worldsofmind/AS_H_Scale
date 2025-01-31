@@ -1,84 +1,77 @@
 import streamlit as st
 import pandas as pd
-from collections import Counter
+import torch
 import string
 from sentence_transformers import SentenceTransformer, util
+from sklearn.feature_extraction.text import TfidfVectorizer
+from collections import Counter
 
-# Load semantic similarity model
+# Load the semantic model for similarity analysis
 model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
 
-# Function to clean the data
+# Function to clean text
+def clean_text(text):
+    if not isinstance(text, str):
+        return "No data available"
+    text = text.lower().strip()
+    text = text.translate(str.maketrans('', '', string.punctuation))
+    return text
+
+# Function to clean dataset
 def clean_data(df, column_name):
     df = df.copy()
-    df[column_name] = df[column_name].astype(str).str.strip().str.lower()
+    df[column_name] = df[column_name].astype(str).apply(clean_text)
     df[column_name] = df[column_name].fillna("No data available")
     return df
 
+# Function to extract dominant themes using TF-IDF & N-grams
+def extract_themes(text_list):
+    vectorizer = TfidfVectorizer(ngram_range=(2, 3), stop_words='english')
+    tfidf_matrix = vectorizer.fit_transform(text_list)
+    feature_array = vectorizer.get_feature_names_out()
+    
+    # Extract the most common key phrases
+    tfidf_scores = tfidf_matrix.sum(axis=0).tolist()[0]
+    sorted_indices = sorted(range(len(tfidf_scores)), key=lambda i: tfidf_scores[i], reverse=True)
+    common_phrases = [feature_array[i] for i in sorted_indices[:10]]
+    
+    return common_phrases
+
 # Function to perform structured analysis dynamically
-def analyze_text(text):
+def analyze_text(text, dataset_texts):
     analysis = {
         "Key Themes": [],
         "Frequent Words": [],
-        "Contextual Insights": [],
         "Semantic Similarity Analysis": []
     }
     
-    # Tokenization and preprocessing
+    # Extract dominant themes from dataset
+    extracted_themes = extract_themes(dataset_texts)
+    analysis["Key Themes"] = extracted_themes if extracted_themes else ["No dominant themes detected"]
+    
+    # Tokenization and counting word frequency
     words = text.split()
     stop_words = set(string.punctuation)
     filtered_words = [word for word in words if word not in stop_words]
     
-    # Identify frequent words
     word_freq = Counter(filtered_words)
     common_words = word_freq.most_common(10)
     analysis["Frequent Words"] = [f"{word}: {count}" for word, count in common_words]
-    
-    # Extract key themes based on word patterns
-    themes = []
-    if any(word in text for word in ["urgent", "time-sensitive", "immediate"]):
-        themes.append("Urgency of Case")
-    if any(word in text for word in ["complex", "multi-layered", "challenging"]):
-        themes.append("Case Complexity")
-    if any(word in text for word in ["negotiation", "counter-offer", "fee discussion"]):
-        themes.append("Fee Negotiations")
-    if any(word in text for word in ["court hearing", "multiple hearings", "sessions"]):
-        themes.append("High Number of Hearings")
-    if any(word in text for word in ["delays", "extended proceedings", "slow process"]):
-        themes.append("Delays and Prolonged Proceedings")
-    if any(word in text for word in ["additional work", "extra hours", "excess workload"]):
-        themes.append("Significant Workload")
-    
-    analysis["Key Themes"] = themes if themes else ["No dominant themes detected"]
-    
-    # Extract contextual insights
-    contextual_insights = []
-    if "offer too low" in text or "counter-proposal" in text:
-        contextual_insights.append("Solicitor challenged fee offered.")
-    if "complex legal matter" in text or "multiple stakeholders" in text:
-        contextual_insights.append("Case required handling multiple legal aspects.")
-    
-    analysis["Contextual Insights"] = contextual_insights if contextual_insights else ["No significant contextual insights."]
-    
+
     # Perform semantic similarity analysis
-    reference_statements = [
-        "The case required urgent handling.",
-        "The complexity of the case increased the workload.",
-        "The legal proceedings involved multiple hearings.",
-        "There was a dispute over the legal fees.",
-        "The client provided late instructions.",
-    ]
+    dataset_embeddings = model.encode(dataset_texts, convert_to_tensor=True)
     text_embedding = model.encode(text, convert_to_tensor=True)
-    reference_embeddings = model.encode(reference_statements, convert_to_tensor=True)
-    similarities = util.pytorch_cos_sim(text_embedding, reference_embeddings)[0]
-    
-    for i, score in enumerate(similarities):
-        if score.item() > 0.5:
-            analysis["Semantic Similarity Analysis"].append(f"Similar to: '{reference_statements[i]}' with score {score.item():.2f}")
-    
+
+    similarities = util.pytorch_cos_sim(text_embedding, dataset_embeddings)[0]
+    most_similar_index = torch.argmax(similarities).item()
+    similarity_score = similarities[most_similar_index].item()
+
+    analysis["Semantic Similarity Analysis"].append(f"Closest match in dataset with score {similarity_score:.2f}")
+
     return analysis
 
 # Streamlit UI
-st.title("Legal Case Analysis Tool with Semantic Analysis")
+st.title("Legal Case Analysis Tool (Dynamic Semantic Analysis)")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
@@ -94,13 +87,15 @@ if uploaded_file:
             "Choose analysis method:",
             ("Analyze each row independently", "Analyze entire dataset"))
         
+        dataset_texts = df[column_name].tolist()  # Extract text from entire dataset
+        
         if analysis_option == "Analyze each row independently":
             selected_case = st.selectbox("Select a case reference", df["Case reference"].tolist())
             selected_row = df[df["Case reference"] == selected_case]
-            analysis_result = analyze_text(selected_row[column_name].values[0])
+            analysis_result = analyze_text(selected_row[column_name].values[0], dataset_texts)
         else:
-            combined_text = " ".join(df[column_name].tolist())
-            analysis_result = analyze_text(combined_text)
+            combined_text = " ".join(dataset_texts)
+            analysis_result = analyze_text(combined_text, dataset_texts)
         
         st.write("### Analysis Results")
         for category, results in analysis_result.items():
