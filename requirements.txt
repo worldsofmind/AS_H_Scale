@@ -1,5 +1,8 @@
 streamlit
 pandas
 openpyxl
-xlsxwriter
-scikit-learn
+collections
+string
+sentence-transformers
+torch
+numpy
