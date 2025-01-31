@@ -11,44 +11,55 @@ def clean_data(df, column_name):
 # Function to perform structured analysis
 def analyze_text(text):
     analysis = {
-        "Text Segmentation": [],
-        "Keyword Identification": [],
-        "Contextual Analysis": [],
-        "Pattern Matching": [],
-        "Logical Consistency Check": []
+        "1. Extensive Work and Time Spent on the Case": [],
+        "2. Complexity of the Case": [],
+        "3. Urgency and Uncooperative Parties": [],
+        "4. High Number of Hearings and Procedural Complexity": [],
+        "5. Justification for Higher Fees": [],
+        "Final Conclusion": []
     }
     
-    # Text Segmentation
-    if "bill of costs" in text or "invoice" in text:
-        analysis["Text Segmentation"].append("Contains billing details")
-    if "email" in text or "correspondence" in text:
-        analysis["Text Segmentation"].append("Includes email exchanges")
-    if "offer" in text or "counter-offer" in text:
-        analysis["Text Segmentation"].append("Mentions negotiation details")
+    # Step 1: Identifying extensive work and time spent
+    if any(term in text for term in ["many hours", "time-consuming", "significant effort", "workload", "extensive work"]):
+        analysis["1. Extensive Work and Time Spent on the Case"].append("Solicitor emphasized significant time commitment.")
+    if any(term in text for term in ["emails", "correspondence", "documents", "drafting", "filing"]):
+        analysis["1. Extensive Work and Time Spent on the Case"].append("Numerous documents filed, including affidavits, applications, and legal correspondences.")
     
-    # Keyword Identification
-    if "complex" in text or "difficult" in text:
-        analysis["Keyword Identification"].append("Complex case")
-    if "additional work" in text or "extra hours" in text:
-        analysis["Keyword Identification"].append("Additional work required")
-    if "urgent" in text or "short turnaround" in text:
-        analysis["Keyword Identification"].append("Urgency of the case")
+    # Step 2: Assessing complexity of the case
+    if any(term in text for term in ["complex", "interlinked issues", "difficult case", "multiple applications"]):
+        analysis["2. Complexity of the Case"].append("Case involved multiple interlinked legal issues requiring additional legal work.")
+    if any(term in text for term in ["self-represented", "frequent lawyer changes", "multiple firms"]):
+        analysis["2. Complexity of the Case"].append("Frequent changes in legal representation caused delays and increased complexity.")
     
-    # Contextual Analysis
-    if "low offer" in text or "counter-proposal" in text:
-        analysis["Contextual Analysis"].append("Solicitor disagreed with offered fees")
-    if "justification" in text:
-        analysis["Contextual Analysis"].append("Solicitor provided justification for fee increase")
+    # Step 3: Identifying urgency and uncooperative parties
+    if any(term in text for term in ["urgent", "last minute", "short turnaround", "immediate response"]):
+        analysis["3. Urgency and Uncooperative Parties"].append("Urgent nature of case required fast legal responses.")
+    if any(term in text for term in ["difficult client", "late instructions", "last-minute changes"]):
+        analysis["3. Urgency and Uncooperative Parties"].append("Client provided late instructions, increasing solicitor workload.")
+    if any(term in text for term in ["delays", "prolonged", "extended proceedings"]):
+        analysis["3. Urgency and Uncooperative Parties"].append("Defendant prolonged proceedings unnecessarily.")
     
-    # Pattern Matching
-    if "multiple hearings" in text or "many rounds" in text:
-        analysis["Pattern Matching"].append("Prolonged court proceedings")
-    if "submissions" in text or "affidavits" in text:
-        analysis["Pattern Matching"].append("Extensive documentation required")
+    # Step 4: Evaluating procedural complexity and hearings
+    if any(term in text for term in ["court hearings", "multiple hearings", "sessions", "mediation", "proceedings"]):
+        analysis["4. High Number of Hearings and Procedural Complexity"].append("Multiple hearings and mediations increased workload.")
+    if any(term in text for term in ["affidavits", "court filings", "submissions"]):
+        analysis["4. High Number of Hearings and Procedural Complexity"].append("Extensive documentation and legal filings required.")
     
-    # Logical Consistency Check
-    if any(term in text for term in ["many hours", "significant effort"]):
-        analysis["Logical Consistency Check"].append("Time commitment aligns with workload claim")
+    # Step 5: Justification for higher fees
+    if any(term in text for term in ["offer too low", "counter-offer", "fee negotiation", "higher fees"]):
+        analysis["5. Justification for Higher Fees"].append("Solicitor argued that the offered compensation was insufficient.")
+    if any(term in text for term in ["precedent cases", "similar cases", "comparative analysis"]):
+        analysis["5. Justification for Higher Fees"].append("Solicitor compared the case complexity with previous cases.")
+    
+    # Final Conclusion
+    analysis["Final Conclusion"] = [
+        "The assigned solicitor wants to deviate from the H-scale due to:",
+        "- High case complexity with interlinked legal issues.",
+        "- Significant time investment in drafting, filing, and court appearances.",
+        "- Urgency of case requiring quick responses and last-minute changes.",
+        "- Difficult client and prolonged proceedings causing additional work.",
+        "- Argument that standard Legal Aid compensation does not adequately cover workload."
+    ]
     
     return analysis
 
@@ -83,3 +94,4 @@ if uploaded_file:
             st.write(results if results else "No findings in this category.")
     else:
         st.error("The required column is missing from the file. Please upload a valid dataset.")
+
