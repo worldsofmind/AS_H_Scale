@@ -1,13 +1,7 @@
 import streamlit as st
 import pandas as pd
-import nltk
 from collections import Counter
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
 import string
-
-nltk.download('punkt')
-nltk.download('stopwords')
 
 # Function to clean the data
 def clean_data(df, column_name):
@@ -25,8 +19,8 @@ def analyze_text(text):
     }
     
     # Tokenization and preprocessing
-    words = word_tokenize(text)
-    stop_words = set(stopwords.words('english') + list(string.punctuation))
+    words = text.split()
+    stop_words = set(string.punctuation)
     filtered_words = [word for word in words if word not in stop_words]
     
     # Identify frequent words
@@ -93,5 +87,3 @@ if uploaded_file:
             st.write(results if results else "No findings in this category.")
     else:
         st.error("The required column is missing from the file. Please upload a valid dataset.")
-
-
