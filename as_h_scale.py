@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.decomposition import NMF
 import re
 
 # Function to clean text
@@ -18,15 +19,22 @@ def clean_data(df, column_name):
     df[column_name] = df[column_name].fillna("No data available")
     return df
 
-# Extract dominant themes using TF-IDF
-def extract_themes(text_list):
+# Extract dominant themes using NMF
+def extract_themes(text_list, num_topics=5, num_words=10):
     vectorizer = TfidfVectorizer(ngram_range=(2, 3), stop_words='english')
     tfidf_matrix = vectorizer.fit_transform(text_list)
-    feature_array = vectorizer.get_feature_names_out()
-    tfidf_scores = tfidf_matrix.sum(axis=0).tolist()[0]
-    sorted_indices = sorted(range(len(tfidf_scores)), key=lambda i: tfidf_scores[i], reverse=True)
-    common_phrases = [feature_array[i] for i in sorted_indices[:10]]
-    return common_phrases
+
+    nmf_model = NMF(n_components=num_topics, random_state=42)
+    nmf_model.fit(tfidf_matrix)
+
+    feature_names = vectorizer.get_feature_names_out()
+    topics = []
+
+    for topic_idx, topic in enumerate(nmf_model.components_):
+        top_words = [feature_names[i] for i in topic.argsort()[:-num_words - 1:-1]]
+        topics.append(f"Topic {topic_idx + 1}: {', '.join(top_words)}")
+
+    return topics
 
 # Enhanced Reason Extraction Function
 def extract_reasons(text):
@@ -130,4 +138,4 @@ if uploaded_file:
             st.write(analysis_result.get("Contextual Reasons", "No significant contextual reasons identified."))
 
     else:
-        st.error("The 'Case reference' column is missing from the file. Please upload a valid dataset.")
+        st.error("The 'Case reference' column is missing from the file. Please upload a valid dataset."
