@@ -1,17 +1,8 @@
 import streamlit as st
 import pandas as pd
-import torch
-from sentence_transformers import SentenceTransformer, util
 from sklearn.feature_extraction.text import TfidfVectorizer
 from collections import Counter
 import re
-
-# Cache the model for efficiency
-@st.cache_data
-def load_model():
-    return SentenceTransformer('paraphrase-MiniLM-L6-v2')
-
-model = load_model()
 
 # Function to clean text
 def clean_text(text):
@@ -79,20 +70,12 @@ def extract_reasons(text):
 def analyze_text(text, dataset_texts):
     analysis = {
         "Key Themes": [],
-        "Frequent Words": [],
-        "Contextual Reasons": [],
-        "Semantic Similarity Analysis": []
+        "Contextual Reasons": []
     }
 
     # Extracting Dominant Themes
     extracted_themes = extract_themes(dataset_texts)
     analysis["Key Themes"] = extracted_themes if extracted_themes else ["No dominant themes detected"]
-
-    # Frequent Words
-    words = text.split()
-    word_freq = Counter(words)
-    common_words = word_freq.most_common(10)
-    analysis["Frequent Words"] = [f"{word}: {count}" for word, count in common_words]
 
     # Extract Contextual Reasons
     contextual_reasons = extract_reasons(text)
@@ -102,18 +85,10 @@ def analyze_text(text, dataset_texts):
     else:
         analysis["Contextual Reasons"].append("No significant contextual reasons identified.")
 
-    # Semantic Similarity
-    dataset_embeddings = model.encode(dataset_texts, convert_to_tensor=True)
-    text_embedding = model.encode(text, convert_to_tensor=True)
-    similarities = util.pytorch_cos_sim(text_embedding, dataset_embeddings)[0]
-    most_similar_index = torch.argmax(similarities).item()
-    similarity_score = similarities[most_similar_index].item()
-    analysis["Semantic Similarity Analysis"].append(f"Closest match in dataset with score {similarity_score:.2f}")
-
     return analysis
 
 # Streamlit App UI
-st.title("Legal Case Analysis Tool (Advanced Contextual Analysis)")
+st.title("Legal Case Analysis Tool (Simplified)")
 
 uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
 
