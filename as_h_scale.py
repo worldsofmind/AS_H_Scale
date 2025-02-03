@@ -2,9 +2,12 @@ import streamlit as st
 import pandas as pd
 import torch
 import string
+import numpy as np
 from sentence_transformers import SentenceTransformer, util
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.decomposition import LatentDirichletAllocation
 from collections import Counter
+import matplotlib.pyplot as plt
 
 # Cache the model to avoid reloading on every interaction
 @st.cache_data
@@ -34,19 +37,49 @@ def extract_themes(text_list):
     tfidf_matrix = vectorizer.fit_transform(text_list)
     feature_array = vectorizer.get_feature_names_out()
     
-    # Extract the most common key phrases
     tfidf_scores = tfidf_matrix.sum(axis=0).tolist()[0]
     sorted_indices = sorted(range(len(tfidf_scores)), key=lambda i: tfidf_scores[i], reverse=True)
     common_phrases = [feature_array[i] for i in sorted_indices[:10]]
     
     return common_phrases
 
-# Function to perform structured analysis dynamically
+# New function for topic modeling using LDA
+def perform_topic_modeling(texts, n_topics=3, n_words=10):
+    # Custom stop words for price negotiations
+    custom_stop_words = ['please', 'thank', 'kindly', 'regards', 'dear', 'hi']
+    
+    vectorizer = TfidfVectorizer(
+        max_df=0.95,
+        min_df=2,
+        stop_words=list(string.punctuation) + custom_stop_words,
+        ngram_range=(1, 2)
+    )
+    tfidf_matrix = vectorizer.fit_transform(texts)
+    
+    lda = LatentDirichletAllocation(
+        n_components=n_topics,
+        max_iter=10,
+        learning_method='online',
+        random_state=42
+    )
+    lda.fit(tfidf_matrix)
+    
+    # Extract top words for each topic
+    feature_names = vectorizer.get_feature_names_out()
+    topics = []
+    for topic_idx, topic in enumerate(lda.components_):
+        top_words = [feature_names[i] for i in topic.argsort()[:-n_words - 1:-1]]
+        topics.append(f"Topic {topic_idx + 1}: " + ", ".join(top_words))
+    
+    return topics
+
+# Modified analysis function
 def analyze_text(text, dataset_texts):
     analysis = {
         "Key Themes": [],
         "Frequent Words": [],
-        "Semantic Similarity Analysis": []
+        "Semantic Similarity Analysis": [],
+        "Topic Modeling Results": []
     }
     
     # Extract dominant themes from dataset
@@ -73,10 +106,15 @@ def analyze_text(text, dataset_texts):
 
     analysis["Semantic Similarity Analysis"].append(f"Closest match in dataset with score {similarity_score:.2f}")
 
+    # Perform topic modeling
+    with st.spinner("Analyzing negotiation topics..."):
+        topics = perform_topic_modeling(dataset_texts, n_topics=3)
+    analysis["Topic Modeling Results"] = topics
+
     return analysis
 
 # Streamlit UI
-st.title("Legal Case Analysis Tool (Dynamic Semantic Analysis)")
+st.title("Legal Case Analysis Tool with Topic Modeling")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
@@ -92,7 +130,7 @@ if uploaded_file:
             "Choose analysis method:",
             ("Analyze each row independently", "Analyze entire dataset"))
         
-        dataset_texts = df[column_name].tolist()  # Extract text from entire dataset
+        dataset_texts = df[column_name].tolist()
         
         if analysis_option == "Analyze each row independently":
             selected_case = st.selectbox("Select a case reference", df["Case reference"].tolist())
@@ -105,6 +143,19 @@ if uploaded_file:
         st.write("### Analysis Results")
         for category, results in analysis_result.items():
             st.subheader(category)
-            st.write(results if results else "No findings in this category.")
+            if category == "Topic Modeling Results":
+                st.write("### Key Negotiation Topics Identified")
+                for topic in results:
+                    st.write(f"- {topic}")
+                # Visualize word cloud for topics
+                st.write("### Topic Word Distribution")
+                all_topics_text = " ".join([" ".join(t.split(": ")[1].split(", ")) for t in results])
+                word_freq = Counter(all_topics_text.split())
+                plt.figure(figsize=(10, 5))
+                plt.imshow(WordCloud(width=800, height=400).generate_from_frequencies(word_freq))
+                plt.axis("off")
+                st.pyplot(plt)
+            else:
+                st.write(results if results else "No findings in this category.")
     else:
         st.error("The required column is missing from the file. Please upload a valid dataset.")
