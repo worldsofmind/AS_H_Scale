@@ -33,20 +33,30 @@ def extract_themes(text_list, num_topics=5, num_words=10):
     for text in text_list:
         filtered_texts.extend(extract_email_sections(text))
 
-    vectorizer = TfidfVectorizer(ngram_range=(2, 3), stop_words='english')
-    tfidf_matrix = vectorizer.fit_transform(filtered_texts)
+    # Filter out empty texts
+    filtered_texts = [text for text in filtered_texts if text.strip()]
 
-    nmf_model = NMF(n_components=num_topics, random_state=42)
-    nmf_model.fit(tfidf_matrix)
+    if not filtered_texts:
+        return ["No valid data available for theme extraction."]
 
-    feature_names = vectorizer.get_feature_names_out()
-    topics = []
+    try:
+        vectorizer = TfidfVectorizer(ngram_range=(2, 3), stop_words='english')
+        tfidf_matrix = vectorizer.fit_transform(filtered_texts)
 
-    for topic_idx, topic in enumerate(nmf_model.components_):
-        top_words = [feature_names[i] for i in topic.argsort()[:-num_words - 1:-1]]
-        topics.append(f"Topic {topic_idx + 1}: {', '.join(top_words)}")
+        nmf_model = NMF(n_components=num_topics, random_state=42)
+        nmf_model.fit(tfidf_matrix)
 
-    return topics
+        feature_names = vectorizer.get_feature_names_out()
+        topics = []
+
+        for topic_idx, topic in enumerate(nmf_model.components_):
+            top_words = [feature_names[i] for i in topic.argsort()[:-num_words - 1:-1]]
+            topics.append(f"Topic {topic_idx + 1}: {', '.join(top_words)}")
+
+        return topics
+
+    except ValueError:
+        return ["⚠️ No meaningful text data available for theme extraction."]
 
 # Enhanced Reason Extraction Function
 def extract_reasons(text):
