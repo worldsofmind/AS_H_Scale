@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
-from sklearn.decomposition import LatentDirichletAllocation
+from sklearn.feature_extraction.text import TTfidfVectorizer
 import re
 
 # Function to clean text
@@ -92,28 +91,8 @@ def analyze_text(text, dataset_texts):
 
     return analysis
 
-# Topic Modeling Function for Emails Only
-def topic_modeling_on_emails(email_texts, num_topics=5):
-    if not email_texts:
-        return ["No email exchanges detected for topic modeling."]
-
-    vectorizer = CountVectorizer(stop_words='english')
-    doc_term_matrix = vectorizer.fit_transform(email_texts)
-
-    lda = LatentDirichletAllocation(n_components=num_topics, random_state=42)
-    lda.fit(doc_term_matrix)
-
-    topics = []
-    feature_names = vectorizer.get_feature_names_out()
-
-    for idx, topic in enumerate(lda.components_):
-        top_words = [feature_names[i] for i in topic.argsort()[:-6:-1]]
-        topics.append(f"Topic {idx + 1}: {', '.join(top_words)}")
-
-    return topics
-
 # Streamlit App UI
-st.title("Legal Case Analysis Tool (With Topic Modeling for Emails Only)")
+st.title("Legal Case Analysis Tool")
 
 uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
 
@@ -150,15 +129,6 @@ if uploaded_file:
         else:
             st.write("⚠️ No emails found in the selected column.")
 
-        # Topic Modeling Button
-        if st.button("Perform Topic Modeling on Extracted Emails"):
-            num_topics = st.slider("Select number of topics:", 2, 10, 5)
-            if email_texts:
-                topics = topic_modeling_on_emails(email_texts, num_topics)
-                analysis_result["Email Topics"] = topics
-            else:
-                analysis_result["Email Topics"] = ["⚠️ No emails available for topic modeling."]
-
         # Display Results
         st.write("### Analysis Results")
         for category, results in analysis_result.items():
@@ -166,3 +136,4 @@ if uploaded_file:
             st.write(results if results else "No findings in this category.")
     else:
         st.error("The 'Case reference' column is missing from the file. Please upload a valid dataset.")
+
