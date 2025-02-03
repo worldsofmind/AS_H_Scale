@@ -67,9 +67,9 @@ def extract_reasons(text):
 
 # Improved Email Extraction Function
 def extract_emails(text):
-    email_pattern = r"(From:.*?Subject:.*?(?=(From:|$)))"  # Improved regex for email blocks
+    email_pattern = r"(From:.*?(?:Sent:.*?)*(?:To:.*?)*(?:Subject:.*?)?(?:\n.*?)*?)(?=From:|$)"
     emails = re.findall(email_pattern, text, re.DOTALL)
-    return [email[0] for email in emails]  # Extract the matched email content
+    return [email.strip() for email in emails if email.strip()]
 
 # Text Analysis Function
 def analyze_text(text, dataset_texts):
@@ -149,7 +149,7 @@ if uploaded_file:
                 topics = topic_modeling_on_emails(email_texts, num_topics)
                 analysis_result["Email Topics"] = topics
             else:
-                analysis_result["Email Topics"] = ["No emails found in the selected column."]
+                analysis_result["Email Topics"] = ["⚠️ No emails found in the selected column."]
 
         # Display Results
         st.write("### Analysis Results")
