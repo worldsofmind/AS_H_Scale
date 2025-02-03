@@ -119,17 +119,25 @@ uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
-    column_name = "Comms between AS, PMU LE, DLA and BRC on billing (Part 1)"
-    case_reference_col = "Case reference"
+    
+    # Allow user to select the column for analysis
+    column_name = st.selectbox("Select the column to analyze", df.columns.tolist())
+    
+    # Check if there's a case reference column
+    case_reference_col = st.selectbox("Select the Case Reference column", df.columns.tolist())
 
     if column_name in df.columns and case_reference_col in df.columns:
         df = clean_data(df, column_name)
+        
+        # Filter by Case Reference
         selected_case = st.selectbox("Select a Case Reference", df[case_reference_col].unique())
         case_texts = df[df[case_reference_col] == selected_case][column_name].tolist()
         combined_text = " ".join(case_texts)
 
+        # Perform Analysis
         analysis_result = analyze_text(combined_text, df[column_name].tolist())
 
+        # Display Results
         st.write("### Analysis Results")
         for category, results in analysis_result.items():
             st.subheader(category)
