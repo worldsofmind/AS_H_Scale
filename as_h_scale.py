@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from sklearn.feature_extraction.text import TTfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
 import re
 
 # Function to clean text
