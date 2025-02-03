@@ -65,9 +65,9 @@ def extract_reasons(text):
     reasons = {k: v for k, v in reasons.items() if v}
     return reasons
 
-# Extract email exchanges from text
+# Improved Email Extraction Function
 def extract_emails(text):
-    email_pattern = r"(From:\s.*?Subject:.*?)(?=(From:|$))"  # Regex to extract email blocks
+    email_pattern = r"(From:.*?Subject:.*?(?=(From:|$)))"  # Improved regex for email blocks
     emails = re.findall(email_pattern, text, re.DOTALL)
     return [email[0] for email in emails]  # Extract the matched email content
 
@@ -158,3 +158,4 @@ if uploaded_file:
             st.write(results if results else "No findings in this category.")
     else:
         st.error("The 'Case reference' column is missing from the file. Please upload a valid dataset.")
+
