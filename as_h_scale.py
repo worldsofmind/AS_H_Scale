@@ -64,12 +64,6 @@ def extract_reasons(text):
     reasons = {k: v for k, v in reasons.items() if v}
     return reasons
 
-# Improved Email Extraction Function
-def extract_emails(text):
-    email_pattern = r"(From:.*?(?:Sent:.*?)*(?:To:.*?)*(?:Subject:.*?)?(?:\n.*?)*?)(?=From:|$)"
-    emails = re.findall(email_pattern, text, re.DOTALL)
-    return [email.strip() for email in emails if email.strip()]
-
 # Text Analysis Function
 def analyze_text(text, dataset_texts):
     analysis = {
@@ -117,23 +111,10 @@ if uploaded_file:
             combined_text = " ".join(df[column_name].tolist())
             analysis_result = analyze_text(combined_text, df[column_name].tolist())
 
-        # Email Extraction
-        email_texts = []
-        for text in df[column_name].tolist():
-            email_texts.extend(extract_emails(text))  # Extract emails from each entry
-
-        st.write(f"### Extracted Emails ({len(email_texts)})")
-        if email_texts:
-            for email in email_texts[:5]:  # Display first 5 emails
-                st.write(email)
-        else:
-            st.write("⚠️ No emails found in the selected column.")
-
         # Display Results
         st.write("### Analysis Results")
         for category, results in analysis_result.items():
             st.subheader(category)
             st.write(results if results else "No findings in this category.")
     else:
-        st.error("The 'Case reference' column is missing from the file. Please upload a valid dataset.")
-
+        st.error("The 'Case reference' column is missing from the file. Please upload a valid dataset."
