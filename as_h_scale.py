@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
-from collections import Counter
 import re
 
 # Function to clean text
@@ -146,8 +145,11 @@ if uploaded_file:
             for text in df[column_name].tolist():
                 email_texts.extend(extract_emails(text))  # Extract emails from each entry
 
-            topics = topic_modeling_on_emails(email_texts, num_topics)
-            analysis_result["Email Topics"] = topics
+            if email_texts:
+                topics = topic_modeling_on_emails(email_texts, num_topics)
+                analysis_result["Email Topics"] = topics
+            else:
+                analysis_result["Email Topics"] = ["No emails found in the selected column."]
 
         # Display Results
         st.write("### Analysis Results")
