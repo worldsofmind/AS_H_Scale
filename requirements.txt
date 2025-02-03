@@ -4,6 +4,3 @@ torch
 sentence-transformers
 scikit-learn
 openpyxl
-matplotlib
-wordcloud
-spacy
