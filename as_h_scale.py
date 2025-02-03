@@ -117,4 +117,4 @@ if uploaded_file:
             st.subheader(category)
             st.write(results if results else "No findings in this category.")
     else:
-        st.error("The 'Case reference' column is missing from the file. Please upload a valid dataset."))
+        st.error("The 'Case reference' column is missing from the file. Please upload a valid dataset.")
