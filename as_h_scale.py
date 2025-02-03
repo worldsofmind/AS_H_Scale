@@ -6,8 +6,12 @@ from sentence_transformers import SentenceTransformer, util
 from sklearn.feature_extraction.text import TfidfVectorizer
 from collections import Counter
 
-# Load the semantic model for similarity analysis
-model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+# Cache the model to avoid reloading on every interaction
+@st.cache_data
+def load_model():
+    return SentenceTransformer('paraphrase-MiniLM-L6-v2')
+
+model = load_model()
 
 # Function to clean text
 def clean_text(text):
@@ -59,7 +63,8 @@ def analyze_text(text, dataset_texts):
     analysis["Frequent Words"] = [f"{word}: {count}" for word, count in common_words]
 
     # Perform semantic similarity analysis
-    dataset_embeddings = model.encode(dataset_texts, convert_to_tensor=True)
+    with st.spinner("Encoding dataset..."):
+        dataset_embeddings = model.encode(dataset_texts, convert_to_tensor=True)
     text_embedding = model.encode(text, convert_to_tensor=True)
 
     similarities = util.pytorch_cos_sim(text_embedding, dataset_embeddings)[0]
