@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+from sklearn.decomposition import LatentDirichletAllocation
 from collections import Counter
 import re
 
@@ -62,7 +63,6 @@ def extract_reasons(text):
             if matches:
                 reasons[key].extend(matches)
 
-    # Clean up empty categories
     reasons = {k: v for k, v in reasons.items() if v}
     return reasons
 
@@ -87,8 +87,25 @@ def analyze_text(text, dataset_texts):
 
     return analysis
 
+# Topic Modeling Function using LDA
+def topic_modeling(text_list, num_topics=5):
+    vectorizer = CountVectorizer(stop_words='english')
+    doc_term_matrix = vectorizer.fit_transform(text_list)
+
+    lda = LatentDirichletAllocation(n_components=num_topics, random_state=42)
+    lda.fit(doc_term_matrix)
+
+    topics = []
+    feature_names = vectorizer.get_feature_names_out()
+
+    for idx, topic in enumerate(lda.components_):
+        top_words = [feature_names[i] for i in topic.argsort()[:-6:-1]]
+        topics.append(f"Topic {idx + 1}: {', '.join(top_words)}")
+
+    return topics
+
 # Streamlit App UI
-st.title("Legal Case Analysis Tool (Simplified)")
+st.title("Legal Case Analysis Tool (With Topic Modeling)")
 
 uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
 
@@ -112,6 +129,12 @@ if uploaded_file:
         else:
             combined_text = " ".join(df[column_name].tolist())
             analysis_result = analyze_text(combined_text, df[column_name].tolist())
+
+        # Topic Modeling Option
+        if st.checkbox("Perform Topic Modeling"):
+            num_topics = st.slider("Select number of topics:", 2, 10, 5)
+            topics = topic_modeling(df[column_name].tolist(), num_topics)
+            analysis_result["Discovered Topics"] = topics
 
         # Display Results
         st.write("### Analysis Results")
