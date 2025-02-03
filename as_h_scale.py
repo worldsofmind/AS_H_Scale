@@ -1,15 +1,8 @@
 import streamlit as st
 import pandas as pd
-import spacy
+import re
 from collections import Counter
 from sklearn.feature_extraction.text import TfidfVectorizer
-
-# Load spaCy model
-@st.cache_data
-def load_nlp_model():
-    return spacy.load("en_core_web_sm")
-
-nlp = load_nlp_model()
 
 # Clean text
 def clean_text(text):
@@ -31,7 +24,6 @@ def extract_themes(text_list):
 
 # Advanced NLP Analysis to Identify Key Reasons
 def analyze_reasons(text):
-    doc = nlp(text)
     reasons = {
         "Significant Workload and Time Commitment": [],
         "Complexity of the Case": [],
@@ -41,41 +33,22 @@ def analyze_reasons(text):
         "Administrative and Logistical Efforts": []
     }
 
-    # Keyword sets for pattern matching
-    workload_keywords = ['hours', 'drafting', 'client attendances', 'correspondence', 'documents']
-    complexity_keywords = ['complexity', 'prolonged litigation', 'case conferences', 'court hearings']
-    communication_keywords = ['emails', 'correspondences', 'letters', 'communication']
-    urgency_keywords = ['urgent', 'immediate', 'child custody', 'protection orders']
-    client_difficulties_keywords = ['uncooperative', 'late instructions', 'difficult client']
-    admin_keywords = ['filings', 'logistics', 'submissions', 'administrative burden']
+    # Define regex patterns for each category
+    patterns = {
+        "Significant Workload and Time Commitment": r"(hours|drafting|attendances|correspondence|documents|workload)",
+        "Complexity of the Case": r"(complexity|litigation|case conferences|court hearings|multi-layered)",
+        "High Volume of Communications": r"(emails|correspondences|letters|communication|exchange)",
+        "Urgency and Procedural Challenges": r"(urgent|immediate|child custody|protection orders|emergency)",
+        "Client-Related Difficulties": r"(uncooperative|late instructions|difficult client|challenging)",
+        "Administrative and Logistical Efforts": r"(filings|logistics|submissions|administrative|documentation)"
+    }
 
-    # Named Entity Recognition (NER) and Dependency Parsing
-    for sent in doc.sents:
-        sent_text = sent.text.lower()
-
-        # Workload and Time Commitment
-        if any(word in sent_text for word in workload_keywords):
-            reasons["Significant Workload and Time Commitment"].append(sent.text)
-
-        # Complexity of the Case
-        if any(word in sent_text for word in complexity_keywords):
-            reasons["Complexity of the Case"].append(sent.text)
-
-        # High Volume of Communications
-        if any(word in sent_text for word in communication_keywords):
-            reasons["High Volume of Communications"].append(sent.text)
-
-        # Urgency and Procedural Challenges
-        if any(word in sent_text for word in urgency_keywords):
-            reasons["Urgency and Procedural Challenges"].append(sent.text)
-
-        # Client-Related Difficulties
-        if any(word in sent_text for word in client_difficulties_keywords):
-            reasons["Client-Related Difficulties"].append(sent.text)
-
-        # Administrative and Logistical Efforts
-        if any(word in sent_text for word in admin_keywords):
-            reasons["Administrative and Logistical Efforts"].append(sent.text)
+    # Sentence-level analysis
+    sentences = re.split(r'(?<=[.!?]) +', text)
+    for sentence in sentences:
+        for category, pattern in patterns.items():
+            if re.search(pattern, sentence, re.IGNORECASE):
+                reasons[category].append(sentence)
 
     # Filter out empty categories
     reasons = {k: v for k, v in reasons.items() if v}
@@ -83,7 +56,7 @@ def analyze_reasons(text):
     return reasons
 
 # Streamlit UI
-st.title("Legal Case Analysis Tool (Advanced NLP)")
+st.title("Legal Case Analysis Tool (Without spaCy)")
 
 # Text Area for Input
 st.subheader("Analyze Specific Text")
