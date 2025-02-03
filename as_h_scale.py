@@ -1,141 +1,112 @@
 import streamlit as st
-import re
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sentence_transformers import SentenceTransformer, util
-from collections import Counter
+import pandas as pd
 import torch
+import string
+from sentence_transformers import SentenceTransformer, util
+from sklearn.feature_extraction.text import TfidfVectorizer
+from collections import Counter
 
-# Load semantic similarity model
+# Load the model
 @st.cache_data
 def load_model():
     return SentenceTransformer('paraphrase-MiniLM-L6-v2')
 
 model = load_model()
 
-# Function to clean and preprocess the text
+# Function to clean text
 def clean_text(text):
-    text = re.sub(r'\n+', ' ', text)
-    text = re.sub(r'\s+', ' ', text)
-    text = text.strip()
+    if not isinstance(text, str):
+        return "No data available"
+    text = text.lower().strip()
+    text = text.translate(str.maketrans('', '', string.punctuation))
     return text
 
-# Function to extract key phrases using TF-IDF
-def extract_key_phrases(text):
-    try:
-        vectorizer = TfidfVectorizer(stop_words='english', ngram_range=(2, 3))
-        tfidf_matrix = vectorizer.fit_transform([text])
-        feature_names = vectorizer.get_feature_names_out()
-        tfidf_scores = tfidf_matrix.toarray().flatten()
+# Function to clean dataset
+def clean_data(df, column_name):
+    df = df.copy()
+    df[column_name] = df[column_name].astype(str).apply(clean_text)
+    df[column_name] = df[column_name].fillna("No data available")
+    return df
 
-        top_n_indices = tfidf_scores.argsort()[-10:][::-1]
-        key_phrases = [feature_names[i] for i in top_n_indices]
-    except Exception as e:
-        st.error(f"Error in extracting key phrases: {e}")
-        key_phrases = []
-    return key_phrases
+# Function to extract dominant themes using TF-IDF & N-grams
+def extract_themes(text_list):
+    vectorizer = TfidfVectorizer(ngram_range=(2, 3), stop_words='english')
+    tfidf_matrix = vectorizer.fit_transform(text_list)
+    feature_array = vectorizer.get_feature_names_out()
 
-# Function for semantic similarity analysis
-def semantic_similarity_analysis(text, reference_phrases):
-    try:
-        text_embedding = model.encode(text, convert_to_tensor=True)
-        reference_embeddings = model.encode(reference_phrases, convert_to_tensor=True)
+    # Extract the most common key phrases
+    tfidf_scores = tfidf_matrix.sum(axis=0).tolist()[0]
+    sorted_indices = sorted(range(len(tfidf_scores)), key=lambda i: tfidf_scores[i], reverse=True)
+    common_phrases = [feature_array[i] for i in sorted_indices[:10]]
 
-        similarities = util.pytorch_cos_sim(text_embedding, reference_embeddings)[0]
-        similar_phrases = [
-            f"Similar to: '{reference_phrases[i]}' (Score: {score.item():.2f})"
-            for i, score in enumerate(similarities) if score > 0.5
-        ]
-    except Exception as e:
-        st.error(f"Error in semantic similarity analysis: {e}")
-        similar_phrases = []
-    return similar_phrases
+    return common_phrases
 
-# Function to analyze the legal text
-def analyze_text(text):
+# Function to perform structured analysis dynamically
+def analyze_text(text, dataset_texts):
     analysis = {
-        "Key Reasons Identified": [],
-        "Key Phrases": [],
-        "Semantic Similarity Insights": []
+        "Key Themes": [],
+        "Frequent Words": [],
+        "Semantic Similarity Analysis": []
     }
-    try:
-        cleaned_text = clean_text(text)
 
-        # Extract key phrases
-        key_phrases = extract_key_phrases(cleaned_text)
-        analysis["Key Phrases"] = key_phrases
+    # Extract dominant themes from dataset
+    extracted_themes = extract_themes(dataset_texts)
+    analysis["Key Themes"] = extracted_themes if extracted_themes else ["No dominant themes detected"]
 
-        # Reference phrases for semantic similarity
-        reference_phrases = [
-            "significant workload",
-            "case complexity",
-            "high volume of communications",
-            "urgency and procedural challenges",
-            "client-related difficulties",
-            "administrative burden",
-            "legal arguments",
-            "document preparation",
-            "court hearings",
-            "difficult negotiations"
-        ]
+    # Tokenization and counting word frequency
+    words = text.split()
+    stop_words = set(string.punctuation)
+    filtered_words = [word for word in words if word not in stop_words]
 
-        similar_insights = semantic_similarity_analysis(cleaned_text, reference_phrases)
-        analysis["Semantic Similarity Insights"] = similar_insights
+    word_freq = Counter(filtered_words)
+    common_words = word_freq.most_common(10)
+    analysis["Frequent Words"] = [f"{word}: {count}" for word, count in common_words]
 
-        # Identify reasons based on keywords and semantic insights
-        if any(re.search(r'\bcomplex|intricate|challenging\b', cleaned_text, re.I)):
-            analysis["Key Reasons Identified"].append("Complexity of the Case")
-        if any(re.search(r'\bworkload|hours spent|extensive\b', cleaned_text, re.I)):
-            analysis["Key Reasons Identified"].append("Significant Workload and Time Commitment")
-        if any(re.search(r'\bcommunication|emails|correspondence\b', cleaned_text, re.I)):
-            analysis["Key Reasons Identified"].append("High Volume of Communications")
-        if any(re.search(r'\burgency|urgent|last minute\b', cleaned_text, re.I)):
-            analysis["Key Reasons Identified"].append("Urgency and Procedural Challenges")
-        if any(re.search(r'\bdifficult client|uncooperative|challenging parties\b', cleaned_text, re.I)):
-            analysis["Key Reasons Identified"].append("Client-Related Difficulties")
-    except Exception as e:
-        st.error(f"Error during analysis: {e}")
-    
+    # Perform semantic similarity analysis
+    with st.spinner("Encoding dataset..."):
+        dataset_embeddings = model.encode(dataset_texts, convert_to_tensor=True)
+    text_embedding = model.encode(text, convert_to_tensor=True)
+
+    similarities = util.pytorch_cos_sim(text_embedding, dataset_embeddings)[0]
+    most_similar_index = torch.argmax(similarities).item()
+    similarity_score = similarities[most_similar_index].item()
+
+    analysis["Semantic Similarity Analysis"].append(f"Closest match in dataset with score {similarity_score:.2f}")
+
     return analysis
 
-# Streamlit App Interface
-st.title("Legal Bill Deviation Analysis Tool")
+# Streamlit UI
+st.title("Legal Case Analysis Tool (Dynamic Semantic Analysis)")
 
-uploaded_file = st.file_uploader("Upload a legal document (text file preferred):", type=["txt"])
+# File uploader
+uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
 
 if uploaded_file:
-    try:
-        # Attempt to read and decode the file
-        legal_text = uploaded_file.read().decode("utf-8")
-    except UnicodeDecodeError:
-        try:
-            legal_text = uploaded_file.read().decode("ISO-8859-1")
-        except Exception as e:
-            st.error(f"Unable to read the file: {e}")
-            legal_text = None
+    df = pd.read_excel(uploaded_file)
+    
+    # Column selection
+    column_name = st.selectbox("Select the column for analysis:", df.columns.tolist())
 
-    if legal_text:
-        st.subheader("Uploaded Text Preview:")
-        st.text_area("Legal Text", legal_text[:3000], height=300)  # Previewing only first 3000 characters for performance
+    if column_name:
+        df = clean_data(df, column_name)
 
-        if st.button("Analyze Text"):
-            with st.spinner("Analyzing the legal document..."):
-                analysis_result = analyze_text(legal_text)
+        analysis_option = st.radio(
+            "Choose analysis method:",
+            ("Analyze each row independently", "Analyze entire dataset"))
 
-            st.success("Analysis Complete!")
+        dataset_texts = df[column_name].tolist()  # Extract text from the selected column
 
-            if analysis_result["Key Reasons Identified"] or analysis_result["Key Phrases"] or analysis_result["Semantic Similarity Insights"]:
-                st.subheader("Key Reasons Identified")
-                for reason in analysis_result["Key Reasons Identified"]:
-                    st.markdown(f"- **{reason}**")
+        if analysis_option == "Analyze each row independently":
+            selected_index = st.selectbox("Select a row to analyze:", df.index)
+            selected_row = df.loc[selected_index]
+            analysis_result = analyze_text(selected_row[column_name], dataset_texts)
+        else:
+            combined_text = " ".join(dataset_texts)
+            analysis_result = analyze_text(combined_text, dataset_texts)
 
-                st.subheader("Key Phrases")
-                for phrase in analysis_result["Key Phrases"]:
-                    st.markdown(f"- {phrase}")
-
-                st.subheader("Semantic Similarity Insights")
-                for insight in analysis_result["Semantic Similarity Insights"]:
-                    st.markdown(f"- {insight}")
-            else:
-                st.warning("No key reasons or insights were identified. Please review the input text.")
-else:
-    st.info("Please upload a legal document to begin the analysis.")
+        st.write("### Analysis Results")
+        for category, results in analysis_result.items():
+            st.subheader(category)
+            st.write(results if results else "No findings in this category.")
+    else:
+        st.error("Please select a valid column for analysis.")
