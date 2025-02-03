@@ -119,13 +119,13 @@ uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
-    
+
     # Allow user to select the column for analysis
     column_name = st.selectbox("Select the column to analyze", df.columns.tolist())
-    
+
     if "Case reference" in df.columns:
         df = clean_data(df, column_name)
-        
+
         # Option to analyze case-by-case or all cases
         analysis_mode = st.radio("Choose analysis mode:", ("Analyze by Case Reference", "Analyze All Cases Together"))
 
@@ -138,18 +138,26 @@ if uploaded_file:
             combined_text = " ".join(df[column_name].tolist())
             analysis_result = analyze_text(combined_text, df[column_name].tolist())
 
-        # Topic Modeling on Emails
-        if st.checkbox("Perform Topic Modeling (Emails Only)"):
-            num_topics = st.slider("Select number of topics:", 2, 10, 5)
-            email_texts = []
-            for text in df[column_name].tolist():
-                email_texts.extend(extract_emails(text))  # Extract emails from each entry
+        # Email Extraction
+        email_texts = []
+        for text in df[column_name].tolist():
+            email_texts.extend(extract_emails(text))  # Extract emails from each entry
 
+        st.write(f"### Extracted Emails ({len(email_texts)})")
+        if email_texts:
+            for email in email_texts[:5]:  # Display first 5 emails
+                st.write(email)
+        else:
+            st.write("⚠️ No emails found in the selected column.")
+
+        # Topic Modeling Button
+        if st.button("Perform Topic Modeling on Extracted Emails"):
+            num_topics = st.slider("Select number of topics:", 2, 10, 5)
             if email_texts:
                 topics = topic_modeling_on_emails(email_texts, num_topics)
                 analysis_result["Email Topics"] = topics
             else:
-                analysis_result["Email Topics"] = ["⚠️ No emails found in the selected column."]
+                analysis_result["Email Topics"] = ["⚠️ No emails available for topic modeling."]
 
         # Display Results
         st.write("### Analysis Results")
@@ -157,4 +165,4 @@ if uploaded_file:
             st.subheader(category)
             st.write(results if results else "No findings in this category.")
     else:
-        st.error("The 'Case reference' column is missing from the file. Please upload a valid dataset.")
+        st.error("The 'Case reference' column is missing from the file. Please upload a valid dataset."
