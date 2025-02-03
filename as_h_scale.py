@@ -1,161 +1,112 @@
 import streamlit as st
 import pandas as pd
-import torch
-import string
-import numpy as np
-from sentence_transformers import SentenceTransformer, util
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.decomposition import LatentDirichletAllocation
+import re
 from collections import Counter
-import matplotlib.pyplot as plt
+from sklearn.feature_extraction.text import TfidfVectorizer
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize, sent_tokenize
 
-# Cache the model to avoid reloading on every interaction
-@st.cache_data
-def load_model():
-    return SentenceTransformer('paraphrase-MiniLM-L6-v2')
+# Download NLTK resources
+nltk.download('punkt')
+nltk.download('stopwords')
 
-model = load_model()
+# Stopwords list
+STOP_WORDS = set(stopwords.words('english'))
 
-# Function to clean text
+# Enhanced Data Cleaning Function
 def clean_text(text):
     if not isinstance(text, str):
         return "No data available"
+    
+    # 1. Lowercase text
     text = text.lower().strip()
-    text = text.translate(str.maketrans('', '', string.punctuation))
-    return text
+    
+    # 2. Remove special characters and numbers
+    text = re.sub(r'[^a-z\s]', '', text)
+    
+    # 3. Remove extra whitespaces
+    text = re.sub(r'\s+', ' ', text)
+    
+    # 4. Remove stopwords
+    words = word_tokenize(text)
+    filtered_words = [word for word in words if word not in STOP_WORDS]
+    
+    return ' '.join(filtered_words)
 
-# Function to clean dataset
-def clean_data(df, column_name):
-    df = df.copy()
-    df[column_name] = df[column_name].astype(str).apply(clean_text)
-    df[column_name] = df[column_name].fillna("No data available")
-    return df
-
-# Function to extract dominant themes using TF-IDF & N-grams
-def extract_themes(text_list):
-    vectorizer = TfidfVectorizer(ngram_range=(2, 3), stop_words='english')
+# Extract key phrases using TF-IDF
+def extract_key_phrases(text_list):
+    vectorizer = TfidfVectorizer(ngram_range=(1, 3), stop_words='english')
     tfidf_matrix = vectorizer.fit_transform(text_list)
     feature_array = vectorizer.get_feature_names_out()
-    
+
     tfidf_scores = tfidf_matrix.sum(axis=0).tolist()[0]
     sorted_indices = sorted(range(len(tfidf_scores)), key=lambda i: tfidf_scores[i], reverse=True)
-    common_phrases = [feature_array[i] for i in sorted_indices[:10]]
-    
-    return common_phrases
+    key_phrases = [feature_array[i] for i in sorted_indices[:10]]
 
-# New function for topic modeling using LDA
-def perform_topic_modeling(texts, n_topics=3, n_words=10):
-    # Custom stop words for price negotiations
-    custom_stop_words = ['please', 'thank', 'kindly', 'regards', 'dear', 'hi']
-    
-    vectorizer = TfidfVectorizer(
-        max_df=0.95,
-        min_df=2,
-        stop_words=list(string.punctuation) + custom_stop_words,
-        ngram_range=(1, 2)
-    )
-    tfidf_matrix = vectorizer.fit_transform(texts)
-    
-    lda = LatentDirichletAllocation(
-        n_components=n_topics,
-        max_iter=10,
-        learning_method='online',
-        random_state=42
-    )
-    lda.fit(tfidf_matrix)
-    
-    # Extract top words for each topic
-    feature_names = vectorizer.get_feature_names_out()
-    topics = []
-    for topic_idx, topic in enumerate(lda.components_):
-        top_words = [feature_names[i] for i in topic.argsort()[:-n_words - 1:-1]]
-        topics.append(f"Topic {topic_idx + 1}: " + ", ".join(top_words))
-    
-    return topics
+    return key_phrases
 
-# Modified analysis function
-def analyze_text(text, dataset_texts):
-    analysis = {
-        "Key Themes": [],
-        "Frequent Words": [],
-        "Semantic Similarity Analysis": [],
-        "Topic Modeling Results": []
-    }
-    
-    # Extract dominant themes from dataset
-    extracted_themes = extract_themes(dataset_texts)
-    analysis["Key Themes"] = extracted_themes if extracted_themes else ["No dominant themes detected"]
-    
-    # Tokenization and counting word frequency
-    words = text.split()
-    stop_words = set(string.punctuation)
-    filtered_words = [word for word in words if word not in stop_words]
-    
-    word_freq = Counter(filtered_words)
+# Dynamic Reason Extraction Function
+def extract_reasons(text):
+    reasons = []
+
+    # Sentence Tokenization
+    sentences = sent_tokenize(text)
+
+    # Extract reasons based on cause-effect phrases
+    cause_effect_keywords = ['because', 'due to', 'as a result of', 'therefore', 'resulting from']
+    for sentence in sentences:
+        if any(phrase in sentence for phrase in cause_effect_keywords):
+            reasons.append(sentence)
+
+    # Key Phrase Extraction
+    key_phrases = extract_key_phrases([text])
+
+    # Frequent Words Analysis
+    words = word_tokenize(text)
+    word_freq = Counter(words)
     common_words = word_freq.most_common(10)
-    analysis["Frequent Words"] = [f"{word}: {count}" for word, count in common_words]
 
-    # Perform semantic similarity analysis
-    with st.spinner("Encoding dataset..."):
-        dataset_embeddings = model.encode(dataset_texts, convert_to_tensor=True)
-    text_embedding = model.encode(text, convert_to_tensor=True)
+    # Combine results
+    output = {
+        "Extracted Reasons": reasons if reasons else ["No explicit reasons found."],
+        "Key Phrases": key_phrases,
+        "Frequent Words": [f"{word}: {count}" for word, count in common_words]
+    }
 
-    similarities = util.pytorch_cos_sim(text_embedding, dataset_embeddings)[0]
-    most_similar_index = torch.argmax(similarities).item()
-    similarity_score = similarities[most_similar_index].item()
-
-    analysis["Semantic Similarity Analysis"].append(f"Closest match in dataset with score {similarity_score:.2f}")
-
-    # Perform topic modeling
-    with st.spinner("Analyzing negotiation topics..."):
-        topics = perform_topic_modeling(dataset_texts, n_topics=3)
-    analysis["Topic Modeling Results"] = topics
-
-    return analysis
+    return output
 
 # Streamlit UI
-st.title("Legal Case Analysis Tool with Topic Modeling")
+st.title("Dynamic Legal Case Analysis Tool (Without spaCy)")
 
-# File uploader
+# Text Area for Input
+st.subheader("Analyze Specific Text")
+input_text = st.text_area("Paste the legal text here:", height=300)
+
+# File Upload Option
+st.subheader("Or Upload an Excel File")
 uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
+
+dataset_texts = []
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
     column_name = "Comms between AS, PMU LE, DLA and BRC on billing (Part 1)"
-    
+
     if column_name in df.columns:
-        df = clean_data(df, column_name)
-        
-        analysis_option = st.radio(
-            "Choose analysis method:",
-            ("Analyze each row independently", "Analyze entire dataset"))
-        
+        df[column_name] = df[column_name].astype(str).apply(clean_text)
         dataset_texts = df[column_name].tolist()
-        
-        if analysis_option == "Analyze each row independently":
-            selected_case = st.selectbox("Select a case reference", df["Case reference"].tolist())
-            selected_row = df[df["Case reference"] == selected_case]
-            analysis_result = analyze_text(selected_row[column_name].values[0], dataset_texts)
-        else:
-            combined_text = " ".join(dataset_texts)
-            analysis_result = analyze_text(combined_text, dataset_texts)
-        
+
+# Analyze Button
+if st.button("Analyze Text"):
+    if input_text.strip() != "":
+        cleaned_text = clean_text(input_text)
+        analysis_result = extract_reasons(cleaned_text)
+
         st.write("### Analysis Results")
         for category, results in analysis_result.items():
             st.subheader(category)
-            if category == "Topic Modeling Results":
-                st.write("### Key Negotiation Topics Identified")
-                for topic in results:
-                    st.write(f"- {topic}")
-                # Visualize word cloud for topics
-                st.write("### Topic Word Distribution")
-                all_topics_text = " ".join([" ".join(t.split(": ")[1].split(", ")) for t in results])
-                word_freq = Counter(all_topics_text.split())
-                plt.figure(figsize=(10, 5))
-                plt.imshow(WordCloud(width=800, height=400).generate_from_frequencies(word_freq))
-                plt.axis("off")
-                st.pyplot(plt)
-            else:
-                st.write(results if results else "No findings in this category.")
+            for item in results:
+                st.write(f"- {item}")
     else:
-        st.error("The required column is missing from the file. Please upload a valid dataset.")
+        st.warning("Please input some text or upload a file for analysis.")
