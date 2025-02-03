@@ -86,24 +86,33 @@ def analyze_text(text, dataset_texts):
     return analysis
 
 # Streamlit App UI
-st.title("Legal Case Analysis Tool")
+st.set_page_config(page_title="Legal Case Analysis Tool", layout="wide")
 
-uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
+st.markdown("""
+    <style>
+        .main {background-color: #f9f9f9; padding: 20px; border-radius: 10px;}
+        h1, h2, h3, h4 {color: #333;}
+        .stButton button {background-color: #4CAF50; color: white;}
+    </style>
+""", unsafe_allow_html=True)
+
+st.title("📊 Legal Case Analysis Tool")
+
+uploaded_file = st.file_uploader("📥 Upload an Excel file", type=["xlsx"])
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Allow user to select the column for analysis
-    column_name = st.selectbox("Select the column to analyze", df.columns.tolist())
+    st.sidebar.header("⚙️ Analysis Settings")
+    column_name = st.sidebar.selectbox("Select the column to analyze", df.columns.tolist())
 
     if "Case reference" in df.columns:
         df = clean_data(df, column_name)
 
-        # Option to analyze case-by-case or all cases
-        analysis_mode = st.radio("Choose analysis mode:", ("Analyze by Case Reference", "Analyze All Cases Together"))
+        analysis_mode = st.sidebar.radio("Choose analysis mode:", ("Analyze by Case Reference", "Analyze All Cases Together"))
 
         if analysis_mode == "Analyze by Case Reference":
-            selected_case = st.selectbox("Select a Case Reference", df["Case reference"].unique())
+            selected_case = st.sidebar.selectbox("Select a Case Reference", df["Case reference"].unique())
             case_texts = df[df["Case reference"] == selected_case][column_name].tolist()
             combined_text = " ".join(case_texts)
             analysis_result = analyze_text(combined_text, df[column_name].tolist())
@@ -111,10 +120,14 @@ if uploaded_file:
             combined_text = " ".join(df[column_name].tolist())
             analysis_result = analyze_text(combined_text, df[column_name].tolist())
 
-        # Display Results
-        st.write("### Analysis Results")
-        for category, results in analysis_result.items():
-            st.subheader(category)
-            st.write(results if results else "No findings in this category.")
+        st.markdown("### 🗂️ Analysis Results")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Key Themes")
+            st.write(analysis_result.get("Key Themes", "No dominant themes detected."))
+        with col2:
+            st.subheader("Contextual Reasons")
+            st.write(analysis_result.get("Contextual Reasons", "No significant contextual reasons identified."))
+
     else:
         st.error("The 'Case reference' column is missing from the file. Please upload a valid dataset.")
