@@ -12,6 +12,13 @@ def clean_text(text):
     text = re.sub(r'[^\w\s]', '', text)  # Remove punctuation
     return text
 
+# Function to extract email-like sections
+def extract_email_sections(text):
+    # Pattern to capture typical email exchanges
+    email_pattern = r"(From:.*?(?:Sent:.*?)*(?:To:.*?)*(?:Subject:.*?)?(?:\n.*?)*?)(?=From:|$)"
+    emails = re.findall(email_pattern, text, re.DOTALL)
+    return emails if emails else [text]  # Fallback to full text if no emails found
+
 # Data cleaning
 def clean_data(df, column_name):
     df = df.copy()
@@ -21,8 +28,13 @@ def clean_data(df, column_name):
 
 # Extract dominant themes using NMF
 def extract_themes(text_list, num_topics=5, num_words=10):
+    # Extract only email-like sections for analysis
+    filtered_texts = []
+    for text in text_list:
+        filtered_texts.extend(extract_email_sections(text))
+
     vectorizer = TfidfVectorizer(ngram_range=(2, 3), stop_words='english')
-    tfidf_matrix = vectorizer.fit_transform(text_list)
+    tfidf_matrix = vectorizer.fit_transform(filtered_texts)
 
     nmf_model = NMF(n_components=num_topics, random_state=42)
     nmf_model.fit(tfidf_matrix)
