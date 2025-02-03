@@ -66,6 +66,12 @@ def extract_reasons(text):
     reasons = {k: v for k, v in reasons.items() if v}
     return reasons
 
+# Extract email exchanges from text
+def extract_emails(text):
+    email_pattern = r"(From:\s.*?Subject:.*?)(?=(From:|$))"  # Regex to extract email blocks
+    emails = re.findall(email_pattern, text, re.DOTALL)
+    return [email[0] for email in emails]  # Extract the matched email content
+
 # Text Analysis Function
 def analyze_text(text, dataset_texts):
     analysis = {
@@ -87,10 +93,13 @@ def analyze_text(text, dataset_texts):
 
     return analysis
 
-# Topic Modeling Function using LDA
-def topic_modeling(text_list, num_topics=5):
+# Topic Modeling Function for Emails Only
+def topic_modeling_on_emails(email_texts, num_topics=5):
+    if not email_texts:
+        return ["No email exchanges detected for topic modeling."]
+
     vectorizer = CountVectorizer(stop_words='english')
-    doc_term_matrix = vectorizer.fit_transform(text_list)
+    doc_term_matrix = vectorizer.fit_transform(email_texts)
 
     lda = LatentDirichletAllocation(n_components=num_topics, random_state=42)
     lda.fit(doc_term_matrix)
@@ -105,7 +114,7 @@ def topic_modeling(text_list, num_topics=5):
     return topics
 
 # Streamlit App UI
-st.title("Legal Case Analysis Tool (With Topic Modeling)")
+st.title("Legal Case Analysis Tool (With Topic Modeling for Emails Only)")
 
 uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
 
@@ -130,11 +139,15 @@ if uploaded_file:
             combined_text = " ".join(df[column_name].tolist())
             analysis_result = analyze_text(combined_text, df[column_name].tolist())
 
-        # Topic Modeling Option
-        if st.checkbox("Perform Topic Modeling"):
+        # Topic Modeling on Emails
+        if st.checkbox("Perform Topic Modeling (Emails Only)"):
             num_topics = st.slider("Select number of topics:", 2, 10, 5)
-            topics = topic_modeling(df[column_name].tolist(), num_topics)
-            analysis_result["Discovered Topics"] = topics
+            email_texts = []
+            for text in df[column_name].tolist():
+                email_texts.extend(extract_emails(text))  # Extract emails from each entry
+
+            topics = topic_modeling_on_emails(email_texts, num_topics)
+            analysis_result["Email Topics"] = topics
 
         # Display Results
         st.write("### Analysis Results")
