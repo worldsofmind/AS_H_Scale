@@ -138,4 +138,4 @@ if uploaded_file:
             st.write(analysis_result.get("Contextual Reasons", "No significant contextual reasons identified."))
 
     else:
-        st.error("The 'Case reference' column is missing from the file. Please upload a valid dataset."
+        st.error("The 'Case reference' column is missing from the file. Please upload a valid dataset.")
