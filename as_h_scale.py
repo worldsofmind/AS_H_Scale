@@ -96,27 +96,37 @@ st.title("Legal Bill Deviation Analysis Tool")
 uploaded_file = st.file_uploader("Upload a legal document (text file preferred):", type=["txt"])
 
 if uploaded_file:
-    legal_text = uploaded_file.read().decode("utf-8")
-    
-    st.subheader("Uploaded Text Preview:")
-    st.text_area("Legal Text", legal_text, height=300)
-    
-    if st.button("Analyze Text"):
-        with st.spinner("Analyzing the legal document..."):
-            analysis_result = analyze_text(legal_text)
+    try:
+        # Try decoding with UTF-8
+        legal_text = uploaded_file.read().decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            # Fallback to ISO-8859-1 if UTF-8 fails
+            legal_text = uploaded_file.read().decode("ISO-8859-1")
+        except Exception as e:
+            st.error(f"Unable to read the file: {e}")
+            legal_text = None
+
+    if legal_text:
+        st.subheader("Uploaded Text Preview:")
+        st.text_area("Legal Text", legal_text, height=300)
         
-        st.success("Analysis Complete!")
-        
-        st.subheader("Key Reasons Identified")
-        for reason in analysis_result["Key Reasons Identified"]:
-            st.markdown(f"- **{reason}**")
-        
-        st.subheader("Key Phrases")
-        for phrase in analysis_result["Key Phrases"]:
-            st.markdown(f"- {phrase}")
-        
-        st.subheader("Semantic Similarity Insights")
-        for insight in analysis_result["Semantic Similarity Insights"]:
-            st.markdown(f"- {insight}")
+        if st.button("Analyze Text"):
+            with st.spinner("Analyzing the legal document..."):
+                analysis_result = analyze_text(legal_text)
+            
+            st.success("Analysis Complete!")
+            
+            st.subheader("Key Reasons Identified")
+            for reason in analysis_result["Key Reasons Identified"]:
+                st.markdown(f"- **{reason}**")
+            
+            st.subheader("Key Phrases")
+            for phrase in analysis_result["Key Phrases"]:
+                st.markdown(f"- {phrase}")
+            
+            st.subheader("Semantic Similarity Insights")
+            for insight in analysis_result["Semantic Similarity Insights"]:
+                st.markdown(f"- {insight}")
 else:
     st.info("Please upload a legal document to begin the analysis.")
