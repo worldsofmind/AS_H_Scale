@@ -1,90 +1,122 @@
 import streamlit as st
-import pandas as pd
 import re
-from collections import Counter
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sentence_transformers import SentenceTransformer, util
+from collections import Counter
+import torch
 
-# Clean text
+# Load semantic similarity model
+@st.cache_data
+def load_model():
+    return SentenceTransformer('paraphrase-MiniLM-L6-v2')
+
+model = load_model()
+
+# Function to clean and preprocess the text
 def clean_text(text):
-    if not isinstance(text, str):
-        return "No data available"
-    return text.lower().strip()
+    text = re.sub(r'\n+', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
+    text = text.strip()
+    return text
 
-# Extract dominant themes using TF-IDF
-def extract_themes(text_list):
-    vectorizer = TfidfVectorizer(ngram_range=(2, 3), stop_words='english')
-    tfidf_matrix = vectorizer.fit_transform(text_list)
-    feature_array = vectorizer.get_feature_names_out()
+# Function to extract key phrases using TF-IDF
+def extract_key_phrases(text):
+    vectorizer = TfidfVectorizer(stop_words='english', ngram_range=(2, 3))
+    tfidf_matrix = vectorizer.fit_transform([text])
+    feature_names = vectorizer.get_feature_names_out()
+    tfidf_scores = tfidf_matrix.toarray().flatten()
+    
+    top_n_indices = tfidf_scores.argsort()[-10:][::-1]
+    key_phrases = [feature_names[i] for i in top_n_indices]
+    
+    return key_phrases
 
-    tfidf_scores = tfidf_matrix.sum(axis=0).tolist()[0]
-    sorted_indices = sorted(range(len(tfidf_scores)), key=lambda i: tfidf_scores[i], reverse=True)
-    common_phrases = [feature_array[i] for i in sorted_indices[:10]]
+# Function for semantic similarity analysis
+def semantic_similarity_analysis(text, reference_phrases):
+    text_embedding = model.encode(text, convert_to_tensor=True)
+    reference_embeddings = model.encode(reference_phrases, convert_to_tensor=True)
+    
+    similarities = util.pytorch_cos_sim(text_embedding, reference_embeddings)[0]
+    similar_phrases = []
+    
+    for i, score in enumerate(similarities):
+        if score > 0.5:  # Adjust threshold as needed
+            similar_phrases.append(f"Similar to: '{reference_phrases[i]}' (Score: {score.item():.2f})")
+    
+    return similar_phrases
 
-    return common_phrases
-
-# Advanced NLP Analysis to Identify Key Reasons
-def analyze_reasons(text):
-    reasons = {
-        "Significant Workload and Time Commitment": [],
-        "Complexity of the Case": [],
-        "High Volume of Communications": [],
-        "Urgency and Procedural Challenges": [],
-        "Client-Related Difficulties": [],
-        "Administrative and Logistical Efforts": []
+# Function to analyze the legal text
+def analyze_text(text):
+    analysis = {
+        "Key Reasons Identified": [],
+        "Key Phrases": [],
+        "Semantic Similarity Insights": []
     }
+    
+    cleaned_text = clean_text(text)
+    
+    # Extract key phrases
+    key_phrases = extract_key_phrases(cleaned_text)
+    analysis["Key Phrases"] = key_phrases
+    
+    # Reference phrases for semantic similarity
+    reference_phrases = [
+        "significant workload",
+        "case complexity",
+        "high volume of communications",
+        "urgency and procedural challenges",
+        "client-related difficulties",
+        "administrative burden",
+        "legal arguments",
+        "document preparation",
+        "court hearings",
+        "difficult negotiations"
+    ]
+    
+    similar_insights = semantic_similarity_analysis(cleaned_text, reference_phrases)
+    analysis["Semantic Similarity Insights"] = similar_insights
+    
+    # Identify reasons based on keywords and semantic insights
+    if any(re.search(r'\bcomplex|intricate|challenging\b', cleaned_text, re.I)):
+        analysis["Key Reasons Identified"].append("Complexity of the Case")
+    if any(re.search(r'\bworkload|hours spent|extensive\b', cleaned_text, re.I)):
+        analysis["Key Reasons Identified"].append("Significant Workload and Time Commitment")
+    if any(re.search(r'\bcommunication|emails|correspondence\b', cleaned_text, re.I)):
+        analysis["Key Reasons Identified"].append("High Volume of Communications")
+    if any(re.search(r'\burgency|urgent|last minute\b', cleaned_text, re.I)):
+        analysis["Key Reasons Identified"].append("Urgency and Procedural Challenges")
+    if any(re.search(r'\bdifficult client|uncooperative|challenging parties\b', cleaned_text, re.I)):
+        analysis["Key Reasons Identified"].append("Client-Related Difficulties")
+    
+    return analysis
 
-    # Define regex patterns for each category
-    patterns = {
-        "Significant Workload and Time Commitment": r"(hours|drafting|attendances|correspondence|documents|workload)",
-        "Complexity of the Case": r"(complexity|litigation|case conferences|court hearings|multi-layered)",
-        "High Volume of Communications": r"(emails|correspondences|letters|communication|exchange)",
-        "Urgency and Procedural Challenges": r"(urgent|immediate|child custody|protection orders|emergency)",
-        "Client-Related Difficulties": r"(uncooperative|late instructions|difficult client|challenging)",
-        "Administrative and Logistical Efforts": r"(filings|logistics|submissions|administrative|documentation)"
-    }
+# Streamlit App Interface
+st.title("Legal Bill Deviation Analysis Tool")
 
-    # Sentence-level analysis
-    sentences = re.split(r'(?<=[.!?]) +', text)
-    for sentence in sentences:
-        for category, pattern in patterns.items():
-            if re.search(pattern, sentence, re.IGNORECASE):
-                reasons[category].append(sentence)
-
-    # Filter out empty categories
-    reasons = {k: v for k, v in reasons.items() if v}
-
-    return reasons
-
-# Streamlit UI
-st.title("Legal Case Analysis Tool (Without spaCy)")
-
-# Text Area for Input
-st.subheader("Analyze Specific Text")
-input_text = st.text_area("Paste the legal text here:", height=300)
-
-# File Upload Option
-st.subheader("Or Upload an Excel File")
-uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
-
-dataset_texts = []
+uploaded_file = st.file_uploader("Upload a legal document (text file preferred):", type=["txt"])
 
 if uploaded_file:
-    df = pd.read_excel(uploaded_file)
-    column_name = "Comms between AS, PMU LE, DLA and BRC on billing (Part 1)"
-
-    if column_name in df.columns:
-        df[column_name] = df[column_name].astype(str).apply(clean_text)
-        dataset_texts = df[column_name].tolist()
-
-# Analyze Button
-if st.button("Analyze Text"):
-    if input_text.strip() != "":
-        analysis_result = analyze_reasons(input_text)
-
-        st.write("### Key Reasons Identified")
-        for category, sentences in analysis_result.items():
-            st.subheader(category)
-            for sentence in sentences:
-                st.write(f"- {sentence}")
-    else:
-        st.warning("Please input some text or upload a file for analysis.")
+    legal_text = uploaded_file.read().decode("utf-8")
+    
+    st.subheader("Uploaded Text Preview:")
+    st.text_area("Legal Text", legal_text, height=300)
+    
+    if st.button("Analyze Text"):
+        with st.spinner("Analyzing the legal document..."):
+            analysis_result = analyze_text(legal_text)
+        
+        st.success("Analysis Complete!")
+        
+        st.subheader("Key Reasons Identified")
+        for reason in analysis_result["Key Reasons Identified"]:
+            st.markdown(f"- **{reason}**")
+        
+        st.subheader("Key Phrases")
+        for phrase in analysis_result["Key Phrases"]:
+            st.markdown(f"- {phrase}")
+        
+        st.subheader("Semantic Similarity Insights")
+        for insight in analysis_result["Semantic Similarity Insights"]:
+            st.markdown(f"- {insight}")
+else:
+    st.info("Please upload a legal document to begin the analysis.")
