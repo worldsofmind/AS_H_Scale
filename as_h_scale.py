@@ -1,83 +1,89 @@
 import streamlit as st
 import pandas as pd
-import re
+import spacy
 from collections import Counter
 from sklearn.feature_extraction.text import TfidfVectorizer
-import nltk
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize, sent_tokenize
 
-# Download NLTK resources
-nltk.download('punkt')
-nltk.download('stopwords')
+# Load spaCy model
+@st.cache_data
+def load_nlp_model():
+    return spacy.load("en_core_web_sm")
 
-# Stopwords list
-STOP_WORDS = set(stopwords.words('english'))
+nlp = load_nlp_model()
 
-# Enhanced Data Cleaning Function
+# Clean text
 def clean_text(text):
     if not isinstance(text, str):
         return "No data available"
-    
-    # 1. Lowercase text
-    text = text.lower().strip()
-    
-    # 2. Remove special characters and numbers
-    text = re.sub(r'[^a-z\s]', '', text)
-    
-    # 3. Remove extra whitespaces
-    text = re.sub(r'\s+', ' ', text)
-    
-    # 4. Remove stopwords
-    words = word_tokenize(text)
-    filtered_words = [word for word in words if word not in STOP_WORDS]
-    
-    return ' '.join(filtered_words)
+    return text.lower().strip()
 
-# Extract key phrases using TF-IDF
-def extract_key_phrases(text_list):
-    vectorizer = TfidfVectorizer(ngram_range=(1, 3), stop_words='english')
+# Extract dominant themes using TF-IDF
+def extract_themes(text_list):
+    vectorizer = TfidfVectorizer(ngram_range=(2, 3), stop_words='english')
     tfidf_matrix = vectorizer.fit_transform(text_list)
     feature_array = vectorizer.get_feature_names_out()
 
     tfidf_scores = tfidf_matrix.sum(axis=0).tolist()[0]
     sorted_indices = sorted(range(len(tfidf_scores)), key=lambda i: tfidf_scores[i], reverse=True)
-    key_phrases = [feature_array[i] for i in sorted_indices[:10]]
+    common_phrases = [feature_array[i] for i in sorted_indices[:10]]
 
-    return key_phrases
+    return common_phrases
 
-# Dynamic Reason Extraction Function
-def extract_reasons(text):
-    reasons = []
-
-    # Sentence Tokenization
-    sentences = sent_tokenize(text)
-
-    # Extract reasons based on cause-effect phrases
-    cause_effect_keywords = ['because', 'due to', 'as a result of', 'therefore', 'resulting from']
-    for sentence in sentences:
-        if any(phrase in sentence for phrase in cause_effect_keywords):
-            reasons.append(sentence)
-
-    # Key Phrase Extraction
-    key_phrases = extract_key_phrases([text])
-
-    # Frequent Words Analysis
-    words = word_tokenize(text)
-    word_freq = Counter(words)
-    common_words = word_freq.most_common(10)
-
-    # Combine results
-    output = {
-        "Extracted Reasons": reasons if reasons else ["No explicit reasons found."],
-        "Key Phrases": key_phrases,
-        "Frequent Words": [f"{word}: {count}" for word, count in common_words]
+# Advanced NLP Analysis to Identify Key Reasons
+def analyze_reasons(text):
+    doc = nlp(text)
+    reasons = {
+        "Significant Workload and Time Commitment": [],
+        "Complexity of the Case": [],
+        "High Volume of Communications": [],
+        "Urgency and Procedural Challenges": [],
+        "Client-Related Difficulties": [],
+        "Administrative and Logistical Efforts": []
     }
 
-    return output
+    # Keyword sets for pattern matching
+    workload_keywords = ['hours', 'drafting', 'client attendances', 'correspondence', 'documents']
+    complexity_keywords = ['complexity', 'prolonged litigation', 'case conferences', 'court hearings']
+    communication_keywords = ['emails', 'correspondences', 'letters', 'communication']
+    urgency_keywords = ['urgent', 'immediate', 'child custody', 'protection orders']
+    client_difficulties_keywords = ['uncooperative', 'late instructions', 'difficult client']
+    admin_keywords = ['filings', 'logistics', 'submissions', 'administrative burden']
+
+    # Named Entity Recognition (NER) and Dependency Parsing
+    for sent in doc.sents:
+        sent_text = sent.text.lower()
+
+        # Workload and Time Commitment
+        if any(word in sent_text for word in workload_keywords):
+            reasons["Significant Workload and Time Commitment"].append(sent.text)
+
+        # Complexity of the Case
+        if any(word in sent_text for word in complexity_keywords):
+            reasons["Complexity of the Case"].append(sent.text)
+
+        # High Volume of Communications
+        if any(word in sent_text for word in communication_keywords):
+            reasons["High Volume of Communications"].append(sent.text)
+
+        # Urgency and Procedural Challenges
+        if any(word in sent_text for word in urgency_keywords):
+            reasons["Urgency and Procedural Challenges"].append(sent.text)
+
+        # Client-Related Difficulties
+        if any(word in sent_text for word in client_difficulties_keywords):
+            reasons["Client-Related Difficulties"].append(sent.text)
+
+        # Administrative and Logistical Efforts
+        if any(word in sent_text for word in admin_keywords):
+            reasons["Administrative and Logistical Efforts"].append(sent.text)
+
+    # Filter out empty categories
+    reasons = {k: v for k, v in reasons.items() if v}
+
+    return reasons
 
 # Streamlit UI
-st.title("Dynamic Legal Case Analysis Tool (Without spaCy)")
+st.title("Legal Case Analysis Tool (Advanced NLP)")
 
 # Text Area for Input
 st.subheader("Analyze Specific Text")
@@ -100,13 +106,12 @@ if uploaded_file:
 # Analyze Button
 if st.button("Analyze Text"):
     if input_text.strip() != "":
-        cleaned_text = clean_text(input_text)
-        analysis_result = extract_reasons(cleaned_text)
+        analysis_result = analyze_reasons(input_text)
 
-        st.write("### Analysis Results")
-        for category, results in analysis_result.items():
+        st.write("### Key Reasons Identified")
+        for category, sentences in analysis_result.items():
             st.subheader(category)
-            for item in results:
-                st.write(f"- {item}")
+            for sentence in sentences:
+                st.write(f"- {sentence}")
     else:
         st.warning("Please input some text or upload a file for analysis.")
