@@ -123,19 +123,20 @@ if uploaded_file:
     # Allow user to select the column for analysis
     column_name = st.selectbox("Select the column to analyze", df.columns.tolist())
     
-    # Check if there's a case reference column
-    case_reference_col = st.selectbox("Select the Case Reference column", df.columns.tolist())
-
-    if column_name in df.columns and case_reference_col in df.columns:
+    if "Case reference" in df.columns:
         df = clean_data(df, column_name)
         
-        # Filter by Case Reference
-        selected_case = st.selectbox("Select a Case Reference", df[case_reference_col].unique())
-        case_texts = df[df[case_reference_col] == selected_case][column_name].tolist()
-        combined_text = " ".join(case_texts)
+        # Option to analyze case-by-case or all cases
+        analysis_mode = st.radio("Choose analysis mode:", ("Analyze by Case Reference", "Analyze All Cases Together"))
 
-        # Perform Analysis
-        analysis_result = analyze_text(combined_text, df[column_name].tolist())
+        if analysis_mode == "Analyze by Case Reference":
+            selected_case = st.selectbox("Select a Case Reference", df["Case reference"].unique())
+            case_texts = df[df["Case reference"] == selected_case][column_name].tolist()
+            combined_text = " ".join(case_texts)
+            analysis_result = analyze_text(combined_text, df[column_name].tolist())
+        else:
+            combined_text = " ".join(df[column_name].tolist())
+            analysis_result = analyze_text(combined_text, df[column_name].tolist())
 
         # Display Results
         st.write("### Analysis Results")
@@ -143,4 +144,4 @@ if uploaded_file:
             st.subheader(category)
             st.write(results if results else "No findings in this category.")
     else:
-        st.error("The required columns are missing from the file. Please upload a valid dataset.")
+        st.error("The 'Case reference' column is missing from the file. Please upload a valid dataset.")
